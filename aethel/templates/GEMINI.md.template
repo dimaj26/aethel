@@ -1,0 +1,103 @@
+# GEMINI.md — Project Orchestrator
+
+Welcome, AI Developer. This file defines your routing protocols, planning templates, git rules, response styling, and coding constraints.
+
+---
+
+## 1. Decision Routing Protocols
+
+Identify the appropriate route before taking any action:
+
+### Route A: Immediate Execution
+- **Criteria**: Minor edits, style fixes, unit tests, single-file adjustments, or basic clarifications.
+- **Protocol**: Implement directly. No plan is required. Explain what you did concisely.
+
+### Route B: Plan-First Implementation (RNA-Blueprint)
+- **Criteria**: New features, architectural refactoring, multi-file edits, schema changes, or database modifications.
+- **Protocol**:
+  1. Research code using workspace tools.
+  2. Create/update `implementation_plan.md` using the **RNA-Blueprint** format (see Section 2).
+  3. Specify design choices and open questions.
+  4. Wait for user approval before editing code.
+  5. Upon approval, create `task.md` and begin execution in 3–5 step chunks.
+
+### Route C: Docs & Memory Update
+- **Criteria**: Updates to APIs, db schemas, business logic, module definitions.
+- **Protocol**:
+  - Do NOT edit `memory.json` manually (prevents JSON syntax errors).
+  - Use Memory MCP tools (`create_entities`, `create_relations`, `add_observations`) to modify the graph.
+  - Append human-readable release logs to [CHANGELOG.md](file:///CHANGELOG.md).
+
+---
+
+## 2. RNA-Blueprint Plan Template (RNA-1)
+
+Create or update `implementation_plan.md` using this format:
+
+```markdown
+# [Feature/Goal Description]
+
+## User Review Required
+- Highlight critical design choices, breaking changes, or trade-offs.
+
+## Base DNA
+- OS, stack, runtime constraints.
+
+## Task RNA
+- Logic, risks, edge cases.
+
+## Contextual Constraints (CC)
+- Extract relevant rules from local rules and memory.json.
+
+## Proposed Changes
+### [Component Name]
+- [MODIFY/NEW/DELETE] [filename](file:///path/to/file)
+  - Detail exact API and logic changes.
+
+## Verification Plan & TDD Reproducer
+### Automated Tests
+- Command to run tests (e.g., `npm test`, `pytest`). Explicitly name the reproducing test file and test case name that reproduces the issue before code changes are applied.
+### Manual Verification
+- Visual inspection checklist or console output matches.
+```
+
+**Chunking rule**: Execute 3–5 steps → report progress → await approval → continue.
+
+---
+
+## 3. Debugging & TDD Philosophy
+- If a bug is reported, you MUST first write a failing unit or integration test that reproduces the bug, verify that it fails, and only then write the code changes to fix the bug. Fixing a bug without reproducing it with a test first is a process failure.
+
+---
+
+## 4. Git Commit & Workflow (GW-1)
+- Commits must use imperative mood (e.g., `feat: add auth service`, NOT `added auth service`).
+- Group commits by type prefix: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`.
+- **Local Milestones**: The AI is allowed to run GW-1 to stage and commit changes locally upon completing significant milestones/refactors:
+  1. `git status`
+  2. `git add .`
+  3. `git commit -m "<prefix>: <message>"`
+- `git push` is strictly forbidden from automatic execution. It must only be run if the user explicitly requests it.
+
+---
+
+## 5. Top-10 Critical Coding Taboos (Hard Constraints)
+
+1. **NO Manual Edits to `memory.json`**: Use Memory MCP tools for all database updates.
+2. **Sync Code and memory.json**: Keep code and the knowledge graph synchronized at all times.
+3. **Database Facades Only**: Never query the database directly from UI/handlers; use service facades.
+4. **FSM State Hygiene**: Validate state preconditions and log transitions clearly.
+5. **No Placeholders in Prod**: Do not commit placeholders or unhandled `TODO` comments.
+6. **No state.clear()**: Do not clear global state without backup and verification.
+7. **Clean Git Attributes**: Do not remove `.gitattributes` or bypass binary masking of database files.
+8. **Fail-Fast Error Handling**: Never catch exceptions silently. Always log and propagate.
+9. **Keep Context.md Under 150 Lines**: Push technical details to the memory knowledge graph.
+10. **Linter Compliance**: Do not ignore warnings from the `prompt_linter.py` script.
+
+---
+
+## 6. Response Rules
+- **Be concise.** No preamble. No restating what the code does.
+- **Token-efficient.** If you modified a file using tools — do NOT paste it in chat. Summary only.
+- **Lossless.** Preserve all existing comments/docstrings not related to the change.
+- **PowerShell only.** All terminal commands must use PowerShell syntax on Windows.

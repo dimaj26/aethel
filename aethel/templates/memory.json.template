@@ -1,0 +1,3 @@
+{"type":"entity","name":"ProjectCore","entityType":"Framework","observations":["Core workspace initialized with Aethel prompt management system.","Separates process rules in Markdown from specifications in memory.json."]}
+{"type":"entity","name":"MemoryMCP","entityType":"Tool","observations":["Anthropic Memory MCP server for knowledge graph persistence.","Uses memory.json as storage file."]}
+{"type":"relation","from":"ProjectCore","to":"MemoryMCP","relationType":"uses"}
