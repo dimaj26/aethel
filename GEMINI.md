@@ -6,7 +6,7 @@ Welcome, AI Developer. This file is the official human-written orchestrator and 
 
 ## 1. Decision Routing Protocols
 
-When a user issues a prompt, categorize the work into one of three routes:
+When the user issues a prompt, silently categorize the work into one of three routes:
 
 ### Route A: Immediate Execution
 * **Criteria**: Simple bug fixes, style adjustments, single-file edits, comments, minor unit tests, or exploratory requests.
@@ -18,8 +18,15 @@ When a user issues a prompt, categorize the work into one of three routes:
   1. Perform codebase research using search tools. Do NOT modify code yet.
   2. Create or update `implementation_plan.md` using the **RNA-Blueprint** format (see section 2).
   3. Specify any open questions or design decisions.
-  4. Halt and wait for user approval before modifying code.
-  5. Upon approval, create `task.md` and begin execution.
+  4. **Plan Linting**: Right after generating/updating the plan, run:
+     `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage plan`
+     Correct any errors before requesting user approval.
+  5. Halt and wait for user approval before modifying code.
+  6. Upon approval, create `task.md` and begin execution in 3–5 step chunks.
+  7. **Checklist Linting**: Once all implementation steps are finished and all tasks in `task.md` are completed, run:
+     `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage checklist`
+  8. **Report Linting**: After generating the walkthrough report (`walkthrough.md`), run:
+     `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage report`
 
 ### Route C: Docs Update (MCP-driven Knowledge Graph)
 * **Criteria**: Any changes to database schemas, API surfaces, module structures, business logic, or code patterns.
@@ -71,13 +78,7 @@ Every complex plan must be structured as follows:
 
 ## 4. Git Commit & Workflow Protocol (GW-1)
 * Commits must use imperative mood (e.g., `feat: add memory sync command`, NOT `added memory sync command`).
-* Group commits by type prefix:
-  * `feat:`: New features
-  * `fix:`: Bug fixes
-  * `docs:`: Documentation updates (such as updating CHANGELOG.md)
-  * `test:`: Adding or refactoring tests
-  * `refactor:`: Restructuring code without changing behavior
-  * `chore:`: Updates to build tasks, dependencies, etc.
+* Group commits by type prefix: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`.
 * **AI local commits**: The AI is allowed to automatically run GW-1 to stage and commit changes locally upon completing significant milestones/refactors:
   1. `git status`
   2. `git rm <deleted-files>` (if applicable)
@@ -107,3 +108,6 @@ Every complex plan must be structured as follows:
 * **Token-efficient.** If you modified a file using tools — do NOT paste it in chat. Summary only.
 * **Lossless.** Preserve all existing comments/docstrings not related to the change.
 * **PowerShell only.** All terminal commands must use PowerShell syntax (Windows).
+* **venv**: Call `.\venv\Scripts\python.exe` directly for all Python executions.
+* **Address**: Always address the user as **Шэф**.
+* **Language**: All responses in **Russian (Русский)**, regardless of the language of the user's message.
