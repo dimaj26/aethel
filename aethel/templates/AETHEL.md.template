@@ -49,7 +49,10 @@ Every complex plan must be structured as follows:
 - Logic, risks, edge cases.
 
 ## Contextual Constraints (CC)
-- Extract relevant rules from local configurations and memory.json.
+- Reference specific rules using the namespace tag format to save tokens and prevent line-shift errors:
+  - `[G-xxx]` for Orchestrator Rules (e.g. `[G-Taboo1]`, `[G-GW1]`) from AETHEL.md.
+  - `[C-xxx]` for Technical Layout Rules (e.g. `[C-DDL]`) from CONTEXT.md.
+  - `[M-xxx]` for Domain Rules (e.g. `[M-PL-6.20]`) from memory.json.
 
 ## Proposed Changes
 ### [Component/Module Name]
