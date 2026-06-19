@@ -197,9 +197,9 @@ def cmd_update(args: argparse.Namespace) -> None:
     # 3. Backup and update central rules (AETHEL.md)
     aethel_path = os.path.join(dest_dir, "AETHEL.md")
     if os.path.exists(aethel_path):
-        backup_path = aethel_path + ".bak"
-        if os.path.exists(backup_path):
-            os.remove(backup_path)
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = f"{aethel_path}.bak.{timestamp}"
         shutil.copy2(aethel_path, backup_path)
         print(f"Created backup of AETHEL.md at {backup_path}")
     copy_template("AETHEL.md.template", "AETHEL.md", dest_dir, overwrite=True)
@@ -207,6 +207,7 @@ def cmd_update(args: argparse.Namespace) -> None:
     # 4. Overwrite redirection files (GEMINI.md, CLAUDE.md)
     copy_template("GEMINI.md.template", "GEMINI.md", dest_dir, overwrite=True)
     copy_template("CLAUDE.md.template", "CLAUDE.md", dest_dir, overwrite=True)
+    copy_template("AETHEL_ONBOARDING.md.template", "AETHEL_ONBOARDING.md", dest_dir, overwrite=True)
 
     # 5. Re-create linter wrapper
     linter_wrapper_path = os.path.join(dest_dir, "prompt_linter.py")

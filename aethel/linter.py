@@ -328,19 +328,11 @@ def check_workspace_hygiene(workspace_path: str, other_checks_passed: bool = Tru
         print_error(f"Failed to list directory contents to check for legacy files: {e}")
         has_errors = True
 
-    # 4. Check for AETHEL_ONBOARDING.md and auto-cleanup
+    # 4. Check for AETHEL_ONBOARDING.md (must be manually deleted by developer)
     onboarding_path = os.path.join(workspace_path, "AETHEL_ONBOARDING.md")
     if os.path.exists(onboarding_path):
-        if other_checks_passed and not has_errors:
-            try:
-                os.remove(onboarding_path)
-                print_success("Onboarding complete. Automatically removed temporary file 'AETHEL_ONBOARDING.md'.")
-            except Exception as e:
-                print_error(f"Failed to auto-remove temporary file 'AETHEL_ONBOARDING.md': {e}")
-                has_errors = True
-        else:
-            print_error("Temporary onboarding file 'AETHEL_ONBOARDING.md' is still present. Complete onboarding tasks first.")
-            has_errors = True
+        print_error("Temporary onboarding/migration file 'AETHEL_ONBOARDING.md' is present. Complete onboarding, merge rules, and manually delete this file to unblock.")
+        has_errors = True
 
     # 5. Warn if aethel is missing from dependencies
     dep_found = False
