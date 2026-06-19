@@ -16,7 +16,7 @@ When a user issues a prompt, categorize the work into one of three routes:
 * **Criteria**: New features, architectural changes, multi-file edits, database modifications, or complex refactorings.
 * **Protocol**:
   1. Perform codebase research using search tools. Do NOT modify code yet.
-  2. Create or update `implementation_plan.md` using the **RNA-Blueprint** format.
+  2. Create or update `implementation_plan.md` using the **RNA-Blueprint** format (see section 2).
   3. Specify any open questions or design decisions.
   4. Halt and wait for user approval before modifying code.
   5. Upon approval, create `task.md` and begin execution.
@@ -30,7 +30,7 @@ When a user issues a prompt, categorize the work into one of three routes:
 
 ---
 
-## 2. RNA-Blueprint Plan Template
+## 2. RNA-Blueprint Plan Template (RNA-1)
 Every complex plan must be structured as follows:
 
 ```markdown
@@ -39,21 +39,37 @@ Every complex plan must be structured as follows:
 ## User Review Required
 - Highlight critical design choices, breaking changes, or trade-offs.
 
+## Base DNA
+- OS, stack, runtime constraints.
+
+## Task RNA
+- Logic, risks, edge cases.
+
+## Contextual Constraints (CC)
+- Extract relevant rules from local configurations and memory.json.
+
 ## Proposed Changes
 ### [Component/Module Name]
 - [MODIFY/NEW/DELETE] [filename](file:///path/to/file)
   - Detail exact API and logic changes.
 
-## Verification Plan
+## Verification Plan & TDD Reproducer
 ### Automated Tests
-- Command to run tests (e.g., `pytest`, `npm test`).
+- Command to run tests (e.g., `pytest`, `npm test`). Explicitly name the reproducing test file and test case name that reproduces the issue before code changes are applied.
 ### Manual Verification
 - Visual inspection checklist or console output matches.
 ```
 
+**Chunking rule**: Execute 3–5 steps → report → await approval → continue.
+
 ---
 
-## 3. Git Commit Protocol
+## 3. Debugging Philosophy (Bug Fixes)
+* If a bug is reported, you MUST first write a failing unit or integration test that reproduces the bug, verify that it fails, and only then write the code changes to fix the bug. Fixing a bug without reproducing it with a test first is a process failure.
+
+---
+
+## 4. Git Commit & Workflow Protocol (GW-1)
 * Commits must use imperative mood (e.g., `feat: add memory sync command`, NOT `added memory sync command`).
 * Group commits by type prefix:
   * `feat:`: New features
@@ -62,10 +78,16 @@ Every complex plan must be structured as follows:
   * `test:`: Adding or refactoring tests
   * `refactor:`: Restructuring code without changing behavior
   * `chore:`: Updates to build tasks, dependencies, etc.
+* **AI local commits**: The AI is allowed to automatically run GW-1 to stage and commit changes locally upon completing significant milestones/refactors:
+  1. `git status`
+  2. `git rm <deleted-files>` (if applicable)
+  3. `git add .`
+  4. `git commit -m "<prefix>: <message>"`
+* `git push` is strictly forbidden from automatic execution. It must only be run if the user explicitly requests it.
 
 ---
 
-## 4. Top-10 Critical Coding Taboos (Hard Constraints)
+## 5. Top-10 Critical Coding Taboos (Hard Constraints)
 
 1. **NO Manual Edits to `memory.json`**: Do not edit the database file manually. Always write/read via Memory MCP tools.
 2. **Sync Code and memory.json**: When modifying files or adding modules, immediately update the memory knowledge graph to match.
@@ -77,3 +99,11 @@ Every complex plan must be structured as follows:
 8. **Fail-Fast Error Handling**: Never catch exceptions silently. Always log with tracebacks and propagate where appropriate.
 9. **Keep Context.md Under 150 Lines**: Do not dump technical details into `CONTEXT.md` that belong in the memory knowledge graph.
 10. **Linter Compliance**: Do not ignore warnings from the `prompt_linter.py` script. Fix them before finishing.
+
+---
+
+## 6. Response Rules
+* **Be concise.** No preamble. No restating what the code does.
+* **Token-efficient.** If you modified a file using tools — do NOT paste it in chat. Summary only.
+* **Lossless.** Preserve all existing comments/docstrings not related to the change.
+* **PowerShell only.** All terminal commands must use PowerShell syntax (Windows).
