@@ -301,6 +301,19 @@ def check_workspace_hygiene(workspace_path: str, other_checks_passed: bool = Tru
         else:
             print_success(f"Core file present: {f}")
 
+    # 1.1 Verify CONTEXT.md does not contain boilerplate placeholders
+    context_path = os.path.join(workspace_path, "CONTEXT.md")
+    if os.path.exists(context_path):
+        try:
+            with open(context_path, "r", encoding="utf-8") as f:
+                ctx_content = f.read()
+            placeholders = ["[e.g. Next.js 15", "[Insert SQL DDL"]
+            for ph in placeholders:
+                if ph in ctx_content:
+                    print_warning(f"CONTEXT.md contains default template placeholder '{ph}'. Please populate it with actual project details.")
+        except Exception as e:
+            print_warning(f"Could not read CONTEXT.md for boilerplate verification: {e}")
+
     # 2. Verify gitattributes configuration
     gitattrib_path = os.path.join(workspace_path, ".gitattributes")
     if os.path.exists(gitattrib_path):
