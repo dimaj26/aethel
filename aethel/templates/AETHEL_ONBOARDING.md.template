@@ -44,7 +44,7 @@ Depending on the state of the repository, execute the following onboarding tasks
 If the project has pre-existing prompt, rule, or system description files (including files renamed to `LEGACY_GEMINI.md`, `LEGACY_README.md`, `CONTEXT_PROMPT.md`, `PROJECT_LOGIC.md`, etc.):
 1. **Analyze Legacy Configurations**: Read the existing files to identify technical details, stack descriptions, schemas, and coding guidelines.
 2. **Populate CONTEXT.md**: Migrate high-level details (Tech Stack, folder layout, database DDL schema) to `[CONTEXT.md](file:///{WORKSPACE_ROOT}/CONTEXT.md)` (keep it under 150 lines).
-3. **Build the Knowledge Graph (memory.json)**: Use the Memory MCP server tools (`create_entities`, `create_relations`, `add_observations`) to migrate all detailed constraints, modules, rules, and designs into the graph database.
+3. **Build the Knowledge Graph (memory.json)**: To prevent cognitive overload and context loss, do NOT physically split the legacy files. Instead, use **virtual sectioning**: create a checklist in `task.md` to migrate categories sequentially (e.g. Database & DDL, Architectural Constraints, UI Design, and Business Invariants). Migrate each category using the Memory MCP server tools (`create_entities`, `create_relations`, `add_observations`), cross-referencing names between categories to maintain graph referential integrity.
 4. **Clean Up Legacy Files**: Delete the legacy prompt files once the migration is complete to avoid duplicate context.
 
 ### Case B: New Project / No Pre-existing Prompts
