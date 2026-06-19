@@ -1,0 +1,5 @@
+{"type":"entity","name":"Aethel","entityType":"Framework","observations":["A context and prompt management system for AI agents in solo developer projects.","Built on YAGNI and robustness principles."]}
+{"type":"entity","name":"MemoryMCP","entityType":"Tool","observations":["Official Anthropic Memory MCP server for knowledge graph-based persistence.","Stores entities and relations as JSON Lines in memory.json."]}
+{"type":"entity","name":"prompt_linter","entityType":"Script","observations":["Local CLI prompt linter to check plan formats and knowledge graph integrity."]}
+{"type":"relation","from":"Aethel","to":"MemoryMCP","relationType":"uses"}
+{"type":"relation","from":"Aethel","to":"prompt_linter","relationType":"uses"}
