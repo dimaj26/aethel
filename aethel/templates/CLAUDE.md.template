@@ -1,4 +1,4 @@
-# Aethel AI Agent Entry Point (GEMINI.md)
+# Aethel AI Agent Entry Point (CLAUDE.md)
 
 Welcome, AI Developer. This workspace is governed by the **Aethel** protocol.
 

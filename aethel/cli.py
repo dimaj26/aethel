@@ -21,9 +21,26 @@ def copy_template(src_name: str, dest_name: str, dest_dir: str, overwrite: bool 
         print(f"Skipping existing file: {dest_name}")
         return False
 
-    shutil.copy2(src_path, dest_path)
-    print(f"Created/Updated: {dest_name}")
-    return True
+    abs_workspace_root = os.path.abspath(dest_dir).replace('\\', '/')
+    try:
+        with open(src_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        content = content.replace("{WORKSPACE_ROOT}", abs_workspace_root)
+
+        with open(dest_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        try:
+            shutil.copymode(src_path, dest_path)
+        except Exception:
+            pass
+
+        print(f"Created/Updated: {dest_name}")
+        return True
+    except Exception as e:
+        print(f"Error copying template {src_name}: {e}")
+        return False
 
 
 # Helper to recursively copy directories
@@ -52,17 +69,51 @@ def cmd_init(args: argparse.Namespace) -> None:
     print(f"Initializing Aethel in: {dest_dir}")
     os.makedirs(dest_dir, exist_ok=True)
 
-    # 1. Copy templates
-    copy_template("gitattributes.template", ".gitattributes", dest_dir, overwrite=args.force)
+    # 1. Handle .gitattributes non-destructively
+    gitattrib_path = os.path.join(dest_dir, ".gitattributes")
+    if os.path.exists(gitattrib_path):
+        try:
+            with open(gitattrib_path, "r", encoding="utf-8") as f:
+                gitattrib_content = f.read()
+            if "memory.json" not in gitattrib_content:
+                with open(gitattrib_path, "a", encoding="utf-8") as f:
+                    f.write("\nmemory.json merge=binary\n")
+                print("Appended memory.json attribute to existing .gitattributes")
+            else:
+                print("Skipping .gitattributes: memory.json attribute already exists.")
+        except Exception as e:
+            print(f"Warning: could not check/append to .gitattributes: {e}")
+    else:
+        copy_template("gitattributes.template", ".gitattributes", dest_dir, overwrite=args.force)
+
+    # 2. Rename existing non-Aethel GEMINI.md or CLAUDE.md files to LEGACY_* to preserve them
+    for fname, signature in [("GEMINI.md", "Aethel"), ("CLAUDE.md", "Aethel")]:
+        fpath = os.path.join(dest_dir, fname)
+        if os.path.exists(fpath) and not args.force:
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    f_content = f.read()
+                if signature not in f_content:
+                    legacy_path = os.path.join(dest_dir, f"LEGACY_{fname}")
+                    if os.path.exists(legacy_path):
+                        os.remove(legacy_path)
+                    os.rename(fpath, legacy_path)
+                    print(f"Renamed existing legacy {fname} to LEGACY_{fname}")
+            except Exception as e:
+                print(f"Warning: could not inspect/rename {fname}: {e}")
+
+    # 3. Copy Aethel templates
+    copy_template("AETHEL.md.template", "AETHEL.md", dest_dir, overwrite=args.force)
     copy_template("GEMINI.md.template", "GEMINI.md", dest_dir, overwrite=args.force)
+    copy_template("CLAUDE.md.template", "CLAUDE.md", dest_dir, overwrite=args.force)
     copy_template("CONTEXT.md.template", "CONTEXT.md", dest_dir, overwrite=args.force)
     copy_template("memory.json.template", "memory.json", dest_dir, overwrite=args.force)
-    copy_template("README.md.template", "README.md", dest_dir, overwrite=args.force)
+    copy_template("AETHEL_ONBOARDING.md.template", "AETHEL_ONBOARDING.md", dest_dir, overwrite=args.force)
 
-    # 2. Copy .agents plugin
+    # 4. Copy .agents plugin
     copy_template_dir(".agents", ".agents", dest_dir, overwrite=args.force)
 
-    # 3. Create wrapper prompt_linter.py
+    # 5. Create wrapper prompt_linter.py
     linter_wrapper_path = os.path.join(dest_dir, "prompt_linter.py")
     if os.path.exists(linter_wrapper_path) and not args.force:
         print("Skipping existing prompt_linter.py wrapper.")
@@ -83,7 +134,7 @@ if __name__ == "__main__":
 """)
         print("Created prompt_linter.py wrapper script.")
 
-    print("Aethel initialization complete. Please configure your Memory MCP server path in README.md.")
+    print("Aethel initialization complete. Please configure your Memory MCP server path in AETHEL_ONBOARDING.md.")
 
 
 def cmd_lint(args: argparse.Namespace) -> None:
@@ -97,20 +148,39 @@ def cmd_update(args: argparse.Namespace) -> None:
     dest_dir = os.path.abspath(args.path)
     print(f"Updating central Aethel structures in: {dest_dir}")
 
-    # 1. Overwrite system files
-    copy_template("gitattributes.template", ".gitattributes", dest_dir, overwrite=True)
+    # 1. Handle .gitattributes (append if exists)
+    gitattrib_path = os.path.join(dest_dir, ".gitattributes")
+    if os.path.exists(gitattrib_path):
+        try:
+            with open(gitattrib_path, "r", encoding="utf-8") as f:
+                gitattrib_content = f.read()
+            if "memory.json" not in gitattrib_content:
+                with open(gitattrib_path, "a", encoding="utf-8") as f:
+                    f.write("\nmemory.json merge=binary\n")
+                print("Appended memory.json attribute to existing .gitattributes")
+        except Exception as e:
+            print(f"Warning: could not check/append to .gitattributes: {e}")
+    else:
+        copy_template("gitattributes.template", ".gitattributes", dest_dir, overwrite=True)
+
+    # 2. Overwrite .agents plugin directory
     copy_template_dir(".agents", ".agents", dest_dir, overwrite=True)
 
-    # 2. Backup and update rule files
-    gemini_path = os.path.join(dest_dir, "GEMINI.md")
-    if os.path.exists(gemini_path):
-        backup_path = gemini_path + ".bak"
-        shutil.copy2(gemini_path, backup_path)
-        print(f"Created backup of GEMINI.md at {backup_path}")
+    # 3. Backup and update central rules (AETHEL.md)
+    aethel_path = os.path.join(dest_dir, "AETHEL.md")
+    if os.path.exists(aethel_path):
+        backup_path = aethel_path + ".bak"
+        if os.path.exists(backup_path):
+            os.remove(backup_path)
+        shutil.copy2(aethel_path, backup_path)
+        print(f"Created backup of AETHEL.md at {backup_path}")
+    copy_template("AETHEL.md.template", "AETHEL.md", dest_dir, overwrite=True)
 
+    # 4. Overwrite redirection files (GEMINI.md, CLAUDE.md)
     copy_template("GEMINI.md.template", "GEMINI.md", dest_dir, overwrite=True)
+    copy_template("CLAUDE.md.template", "CLAUDE.md", dest_dir, overwrite=True)
 
-    # 3. Re-create linter wrapper
+    # 5. Re-create linter wrapper
     linter_wrapper_path = os.path.join(dest_dir, "prompt_linter.py")
     with open(linter_wrapper_path, "w", encoding="utf-8") as f:
         f.write("""#!/usr/bin/env python3

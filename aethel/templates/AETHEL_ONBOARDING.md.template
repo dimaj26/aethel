@@ -1,0 +1,65 @@
+# Aethel Onboarding & Legacy Migration Guide
+
+Welcome, AI Developer. This workspace is being onboarded to the **Aethel** AI prompt & context management protocol.
+
+---
+
+## 1. Setup Memory MCP Integration
+
+To enable you to read and write to the knowledge graph `memory.json`, you must configure the official Memory MCP server.
+
+### A. Claude Desktop
+Add to your `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+```json
+{
+  "mcpServers": {
+    "project-memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "env": {
+        "MEMORY_FILE_PATH": "{WORKSPACE_ROOT}/memory.json"
+      }
+    }
+  }
+}
+```
+
+### B. Cursor IDE
+1. Go to **Settings -> Features -> MCP**.
+2. Add new MCP server:
+   - Name: `project-memory`
+   - Type: `command`
+   - Command: `npx -y @modelcontextprotocol/server-memory`
+3. Launch Cursor with the environment variable set to the absolute path of your `memory.json`:
+   - PowerShell: `$env:MEMORY_FILE_PATH="{WORKSPACE_ROOT}/memory.json"; cursor .`
+   - Cmd: `set MEMORY_FILE_PATH={WORKSPACE_ROOT}/memory.json && cursor .`
+
+---
+
+## 2. Onboarding & Migration Steps
+
+Depending on the state of the repository, execute the following onboarding tasks immediately:
+
+### Case A: Legacy Repository Migration
+If the project has pre-existing prompt, rule, or system description files (including files renamed to `LEGACY_GEMINI.md`, `LEGACY_README.md`, `CONTEXT_PROMPT.md`, `PROJECT_LOGIC.md`, etc.):
+1. **Analyze Legacy Configurations**: Read the existing files to identify technical details, stack descriptions, schemas, and coding guidelines.
+2. **Populate CONTEXT.md**: Migrate high-level details (Tech Stack, folder layout, database DDL schema) to `[CONTEXT.md](file:///{WORKSPACE_ROOT}/CONTEXT.md)` (keep it under 150 lines).
+3. **Build the Knowledge Graph (memory.json)**: Use the Memory MCP server tools (`create_entities`, `create_relations`, `add_observations`) to migrate all detailed constraints, modules, rules, and designs into the graph database.
+4. **Clean Up Legacy Files**: Delete the legacy prompt files once the migration is complete to avoid duplicate context.
+
+### Case B: New Project / No Pre-existing Prompts
+If this is a new project or has no legacy prompt/rule files:
+1. **Initialize CONTEXT.md**: Document the project's tech stack, directory structure, and database DDL schema if they exist.
+2. **Establish the Knowledge Graph (memory.json)**: Create initial module entities and relationships to represent the codebase layout.
+3. **Continuous Maintenance**: Dynamically update `memory.json` as new modules, API routes, or database tables are added.
+
+---
+
+## 3. Finalizing Onboarding (IMPORTANT)
+
+Once you have completed all onboarding steps, you MUST:
+1. Run the workspace linter to verify graph and plan integrity:
+   ```bash
+   python prompt_linter.py
+   ```
+2. **Delete this file** (`AETHEL_ONBOARDING.md`) before staging and committing your changes to Git. This prevents temporary onboarding guidelines from polluting the repository.

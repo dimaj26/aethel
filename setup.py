@@ -7,6 +7,7 @@ setup(
     author="Aethel Team",
     packages=find_packages(),
     include_package_data=True,
+    zip_safe=False,
     install_requires=[
         # Core python CLI standard library modules are sufficient, no major external deps needed
     ],
