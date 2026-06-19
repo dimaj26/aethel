@@ -30,6 +30,8 @@ When the user issues a prompt, silently categorize the work into one of three ro
 * **Protocol**:
   * Do NOT edit `memory.json` manually (this risks syntax vandalism).
   * Use the Memory MCP Server tools (`create_entities`, `create_relations`, `add_observations`) to document new structures or update existing ones.
+  * Use the deletion tools (`delete_entities`, `delete_relations`, `delete_observations`) to prune and clean up stale, deprecated, or replaced rules, observations, and entities whenever refactoring or deleting codebase structures.
+  * For human-readable release changes, append to [CHANGELOG.md](file:///c:/aethel/CHANGELOG.md).
 
 ---
 
