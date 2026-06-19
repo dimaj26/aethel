@@ -18,8 +18,15 @@ Identify the appropriate route before taking any action:
   1. Research code using workspace tools.
   2. Create/update `implementation_plan.md` using the **RNA-Blueprint** format (see Section 2).
   3. Specify design choices and open questions.
-  4. Wait for user approval before editing code.
-  5. Upon approval, create `task.md` and begin execution in 3–5 step chunks.
+  4. **Plan Linting**: Right after generating/updating the plan, run:
+     `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage plan`
+     Correct any errors before requesting user approval.
+  5. Wait for user approval before editing code.
+  6. Upon approval, create `task.md` and begin execution in 3–5 step chunks.
+  7. **Checklist Linting**: Once all implementation steps are finished and all tasks in `task.md` are completed, run:
+     `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage checklist`
+  8. **Report Linting**: After generating the walkthrough report (`walkthrough.md`), run:
+     `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage report`
 
 ### Route C: Docs & Memory Update
 - **Criteria**: Updates to APIs, db schemas, business logic, module definitions.
@@ -101,3 +108,4 @@ Create or update `implementation_plan.md` using this format:
 - **Token-efficient.** If you modified a file using tools — do NOT paste it in chat. Summary only.
 - **Lossless.** Preserve all existing comments/docstrings not related to the change.
 - **PowerShell only.** All terminal commands must use PowerShell syntax on Windows.
+- **venv**: Call `.\venv\Scripts\python.exe` directly for all Python executions.

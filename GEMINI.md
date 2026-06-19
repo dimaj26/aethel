@@ -109,5 +109,3 @@ Every complex plan must be structured as follows:
 * **Lossless.** Preserve all existing comments/docstrings not related to the change.
 * **PowerShell only.** All terminal commands must use PowerShell syntax (Windows).
 * **venv**: Call `.\venv\Scripts\python.exe` directly for all Python executions.
-* **Address**: Always address the user as **Шэф**.
-* **Language**: All responses in **Russian (Русский)**, regardless of the language of the user's message.
