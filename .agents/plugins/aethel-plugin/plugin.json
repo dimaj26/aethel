@@ -1,0 +1,5 @@
+{
+  "name": "aethel-plugin",
+  "description": "Aethel project AI assistant plugin. Provides architectural audit (proposal analysis) and context management skills.",
+  "version": "1.0.0"
+}
