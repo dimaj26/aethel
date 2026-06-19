@@ -1,0 +1,21 @@
+# Virtual environment
+venv/
+
+# Build and egg-info directories
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Local auxiliary / temporary files
+_nogit_*
+GEMINI.md.bak
+*.bak

@@ -1,0 +1,2 @@
+# Production requirements for Aethel
+# Aethel mostly uses Python standard library, no external packages required at runtime

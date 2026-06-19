@@ -10,11 +10,7 @@ setup(
     install_requires=[
         # Core python CLI standard library modules are sufficient, no major external deps needed
     ],
-    entry_points={
-        "console_scripts": [
-            "aethel=aethel.cli:main",
-        ],
-    },
+
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
