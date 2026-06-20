@@ -162,8 +162,8 @@ pytest
     memory_path = os.path.join(scen_dir, "memory.json")
     # Create dependency cycle
     with open(memory_path, "w", encoding="utf-8") as f:
-        f.write('{"type":"entity","name":"A","entityType":"module","observations":[]}\n')
-        f.write('{"type":"entity","name":"B","entityType":"module","observations":[]}\n')
+        f.write('{"type":"entity","name":"A","entityType":"Component","observations":[]}\n')
+        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
         f.write('{"type":"relation","from":"A","to":"B","relationType":"depends_on"}\n')
         f.write('{"type":"relation","from":"B","to":"A","relationType":"depends_on"}\n')
         
@@ -171,10 +171,63 @@ pytest
     
     # Fix cycle
     with open(memory_path, "w", encoding="utf-8") as f:
-        f.write('{"type":"entity","name":"A","entityType":"module","observations":[]}\n')
-        f.write('{"type":"entity","name":"B","entityType":"module","observations":[]}\n')
+        f.write('{"type":"entity","name":"A","entityType":"Component","observations":[]}\n')
+        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
         f.write('{"type":"relation","from":"A","to":"B","relationType":"depends_on"}\n')
         
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    # 4. Test invalid entityType in memory.json
+    with open(memory_path, "w", encoding="utf-8") as f:
+        f.write('{"type":"entity","name":"A","entityType":"invalid_type","observations":[]}\n')
+        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
+        f.write('{"type":"relation","from":"A","to":"B","relationType":"depends_on"}\n')
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+
+    # 5. Test invalid relationType in memory.json
+    with open(memory_path, "w", encoding="utf-8") as f:
+        f.write('{"type":"entity","name":"A","entityType":"Component","observations":[]}\n')
+        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
+        f.write('{"type":"relation","from":"A","to":"B","relationType":"invalid_rel"}\n')
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+
+    # 6. Test placeholder warning in memory.json
+    with open(memory_path, "w", encoding="utf-8") as f:
+        f.write('{"type":"entity","name":"A","entityType":"Component","observations":["Some observation [Insert details here]"]}\n')
+        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
+        f.write('{"type":"relation","from":"A","to":"B","relationType":"depends_on"}\n')
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    # Restore valid memory.json
+    with open(memory_path, "w", encoding="utf-8") as f:
+        f.write('{"type":"entity","name":"A","entityType":"Component","observations":[]}\n')
+        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
+        f.write('{"type":"relation","from":"A","to":"B","relationType":"depends_on"}\n')
+
+    # 7. Test missing required header in CONTEXT.md
+    ctx_file = os.path.join(scen_dir, "CONTEXT.md")
+    with open(ctx_file, "r", encoding="utf-8") as f:
+        original_ctx = f.read()
+    
+    with open(ctx_file, "w", encoding="utf-8") as f:
+        f.write(original_ctx.replace("## 1. Project Directory Structure", "## 1. Deleted Header"))
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+    
+    with open(ctx_file, "w", encoding="utf-8") as f:
+        f.write(original_ctx)
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    # 8. Test missing required header in AETHEL.md
+    aethel_file = os.path.join(scen_dir, "AETHEL.md")
+    with open(aethel_file, "r", encoding="utf-8") as f:
+        original_aethel = f.read()
+        
+    with open(aethel_file, "w", encoding="utf-8") as f:
+        f.write(original_aethel.replace("## 6. Response Rules", "## 6. Deleted Rules"))
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+    
+    with open(aethel_file, "w", encoding="utf-8") as f:
+        f.write(original_aethel)
     run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
     
     print(f"{GREEN}[PASS] Scenario C completed successfully.{RESET}")
@@ -193,7 +246,7 @@ def test_scenario_d(temp_dir):
     with open(memory_path, "w", encoding="utf-8") as f:
         # Entities
         for i in range(150):
-            f.write(f'{{"type":"entity","name":"Node_{i}","entityType":"module","observations":[]}}\n')
+            f.write(f'{{"type":"entity","name":"Node_{i}","entityType":"Component","observations":[]}}\n')
         # Relations (linear chain to avoid cycles)
         for i in range(149):
             f.write(f'{{"type":"relation","from":"Node_{i}","to":"Node_{i+1}","relationType":"depends_on"}}\n')

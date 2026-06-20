@@ -45,6 +45,9 @@ If the project has pre-existing prompt, rule, or system description files (inclu
 1. **Analyze Legacy Configurations**: Read the existing files to identify technical details, stack descriptions, schemas, and coding guidelines.
 2. **Populate CONTEXT.md**: Migrate high-level details (Tech Stack, folder layout, database DDL schema) to `[CONTEXT.md](file:///{WORKSPACE_ROOT}/CONTEXT.md)` (keep it under 150 lines).
 3. **Build the Knowledge Graph (memory.json)**: To prevent cognitive overload and context loss, do NOT physically split the legacy files. Instead, use **virtual sectioning**: create a checklist in `task.md` to migrate categories sequentially (e.g. Database & DDL, Architectural Constraints, UI Design, and Business Invariants). Migrate each category using the Memory MCP server tools (`create_entities`, `create_relations`, `add_observations`), cross-referencing names between categories to maintain graph referential integrity.
+   - **Allowed Entity Types**: Framework, Tool, Layer, Component, DataModel, ExternalService, Route.
+   - **Allowed Relation Types**: uses, defines, calls, renders, tests, stores, part_of, depends_on.
+   - **Granularity Limit**: Do not register individual functions, variables, or low-level helpers in the graph to avoid a "spaghetti graph" and out-of-sync bugs. Only map architectural boundaries, files, database tables, core services, and routes. Detail-level code logic is read directly from code files.
 4. **Clean Up Legacy Files**: Delete the legacy prompt files once the migration is complete to avoid duplicate context.
 
 ### Case B: New Project / No Pre-existing Prompts

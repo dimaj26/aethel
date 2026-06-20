@@ -212,6 +212,15 @@ def check_memory_integrity(workspace_path: str) -> bool:
                 else:
                     entities[name] = {"entityType": entity_type, "observations": observations, "line": line_number}
 
+                ALLOWED_ENTITY_TYPES = {"Framework", "Tool", "Layer", "Component", "DataModel", "ExternalService", "Route"}
+                if entity_type not in ALLOWED_ENTITY_TYPES:
+                    print_error(f"Line {line_number}: Entity '{name}' has invalid entityType '{entity_type}'. Allowed types: {sorted(list(ALLOWED_ENTITY_TYPES))}")
+                    has_errors = True
+
+                for obs in observations:
+                    if any(placeholder in obs for placeholder in ["[Insert", "[e.g.", "[your_", "[note_path]", "[vault_name]"]):
+                        print_warning(f"Line {line_number}: Entity '{name}' observation contains placeholder: '{obs}'")
+
             elif record_type == "relation":
                 from_node = data.get("from")
                 to_node = data.get("to")
@@ -222,6 +231,11 @@ def check_memory_integrity(workspace_path: str) -> bool:
                     has_errors = True
                 else:
                     relations.append({"from": from_node, "to": to_node, "relationType": rel_type, "line": line_number})
+
+                ALLOWED_RELATION_TYPES = {"uses", "defines", "calls", "renders", "tests", "stores", "part_of", "depends_on"}
+                if rel_type and rel_type not in ALLOWED_RELATION_TYPES:
+                    print_error(f"Line {line_number}: Relation '{from_node}' -> '{to_node}' has invalid relationType '{rel_type}'. Allowed types: {sorted(list(ALLOWED_RELATION_TYPES))}")
+                    has_errors = True
             else:
                 print_warning(f"Line {line_number}: Unknown record type '{record_type}'. Skipping.")
 
@@ -313,6 +327,47 @@ def check_workspace_hygiene(workspace_path: str, other_checks_passed: bool = Tru
                     print_warning(f"CONTEXT.md contains default template placeholder '{ph}'. Please populate it with actual project details.")
         except Exception as e:
             print_warning(f"Could not read CONTEXT.md for boilerplate verification: {e}")
+
+    # 1.2 Verify CONTEXT.md required headers presence
+    if os.path.exists(context_path):
+        try:
+            with open(context_path, "r", encoding="utf-8") as f:
+                ctx_content = f.read()
+            required_h2s_context = [
+                (r"^##\s+1\.\s+Project\s+Directory\s+Structure", "## 1. Project Directory Structure & Tech Stack"),
+                (r"^##\s+2\.\s+Core\s+Database\s+Schema", "## 2. Core Database Schema (DDL reference)"),
+                (r"^##\s+3\.\s+Top-10\s+Critical\s+Coding\s+Taboos", "## 3. Top-10 Critical Coding Taboos (Project References / Reference Checklist)"),
+                (r"^##\s+4\.\s+Obsidian\s+RAG\s+Navigation\s+Map", "## 4. Obsidian RAG Navigation Map")
+            ]
+            for pattern, h2_name in required_h2s_context:
+                if not re.search(pattern, ctx_content, re.MULTILINE):
+                    print_error(f"CONTEXT.md is missing required section: '{h2_name}'")
+                    has_errors = True
+        except Exception as e:
+            print_error(f"Failed to read CONTEXT.md for structural checks: {e}")
+            has_errors = True
+
+    # 1.3 Verify AETHEL.md required headers presence
+    aethel_path = os.path.join(workspace_path, "AETHEL.md")
+    if os.path.exists(aethel_path):
+        try:
+            with open(aethel_path, "r", encoding="utf-8") as f:
+                aethel_content = f.read()
+            required_h2s_aethel = [
+                (r"^##\s+1\.\s+Decision\s+Routing\s+Protocols", "## 1. Decision Routing Protocols"),
+                (r"^##\s+2\.\s+RNA-Blueprint\s+Plan\s+Template", "## 2. RNA-Blueprint Plan Template (RNA-1)"),
+                (r"^##\s+3\.\s+Debugging\s+Philosophy", "## 3. Debugging Philosophy (Bug Fixes)"),
+                (r"^##\s+4\.\s+Git\s+Commit\s+&\s+Workflow\s+Protocol", "## 4. Git Commit & Workflow Protocol (GW-1)"),
+                (r"^##\s+5\.\s+Top-10\s+Critical\s+Coding\s+Taboos", "## 5. Top-10 Critical Coding Taboos (Hard Constraints)"),
+                (r"^##\s+6\.\s+Response\s+Rules", "## 6. Response Rules")
+            ]
+            for pattern, h2_name in required_h2s_aethel:
+                if not re.search(pattern, aethel_content, re.MULTILINE):
+                    print_error(f"AETHEL.md is missing required section: '{h2_name}'")
+                    has_errors = True
+        except Exception as e:
+            print_error(f"Failed to read AETHEL.md for structural checks: {e}")
+            has_errors = True
 
     # 2. Verify gitattributes configuration
     gitattrib_path = os.path.join(workspace_path, ".gitattributes")
