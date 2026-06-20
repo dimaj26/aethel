@@ -2,10 +2,10 @@
 
 The linter's ontology, required structure and language policy used to be
 hard-coded. That made Aethel unusable as a multi-project library: a fixed set
-of entity/relation types and exact Russian-numbered headings cannot fit every
-stack. This module loads an optional ``aethel.toml`` from the workspace root and
-falls back to sensible defaults, so behaviour stays backward-compatible when no
-config is present.
+of entity/relation types and rigid headings cannot fit every stack. This module
+loads an optional ``aethel.toml`` from the workspace root and falls back to
+language-neutral defaults, so behaviour stays backward-compatible when no config
+is present.
 """
 
 from __future__ import annotations
@@ -64,8 +64,9 @@ class AethelConfig:
     structure_enforce: str = "error"  # error | warn | off
     context_headers: list[str] = field(default_factory=lambda: list(DEFAULT_CONTEXT_HEADERS))
     aethel_headers: list[str] = field(default_factory=lambda: list(DEFAULT_AETHEL_HEADERS))
-    artifact_lang: str = "en"  # language enforced for implementation_plan.md / task.md
-    report_lang: str = "ru"  # language enforced for walkthrough.md
+    artifact_lang: str = "any"  # "en" | "ru" | "any"; language check for plan/task (default: none)
+    report_lang: str = "any"  # "en" | "ru" | "any"; language check for walkthrough.md (default: none)
+    artifact_whitelist: list[str] = field(default_factory=list)  # words allowed when artifact_lang == "en"
     placeholder_markers: list[str] = field(default_factory=lambda: list(DEFAULT_PLACEHOLDER_MARKERS))
     sync_enforce: str = "warn"  # error | warn | off (spec-sync drift at commit time)
     sync_watched: list[str] = field(default_factory=lambda: list(DEFAULT_SYNC_WATCHED))
@@ -125,6 +126,7 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
     if isinstance(language, dict):
         cfg.artifact_lang = _coerce_lang(language.get("artifact_lang"), cfg.artifact_lang)
         cfg.report_lang = _coerce_lang(language.get("report_lang"), cfg.report_lang)
+        cfg.artifact_whitelist = _coerce_str_list(language.get("whitelist"), cfg.artifact_whitelist)
 
     sync = data.get("sync", {})
     if isinstance(sync, dict):

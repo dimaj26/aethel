@@ -27,12 +27,15 @@ context_headers = ["Directory Structure", "Database Schema", "Coding Taboos", "N
 aethel_headers = ["Decision Routing", "RNA-Blueprint", "Debugging", "Git Commit", "Coding Taboos", "Response Rules"]
 
 [language]
-# Language policy for generated artifacts:
+# Optional language policy for generated artifacts. Defaults to "any" (no check) so
+# the library ships no language opinion; set a value to enforce one in this project.
 #   "en"  -> must be English (Cyrillic words flagged)
 #   "ru"  -> must be Russian (absence of Cyrillic flagged)
-#   "any" -> no language check
-artifact_lang = "en"   # implementation_plan.md, task.md
-report_lang = "ru"     # walkthrough.md
+#   "any" -> no language check (default)
+artifact_lang = "any"   # implementation_plan.md, task.md
+report_lang = "any"     # walkthrough.md
+# Proper nouns / terms allowed even when artifact_lang = "en" (case-insensitive).
+whitelist = []
 
 [sync]
 # Spec-sync drift guard, evaluated by the git pre-commit hook. If code files are

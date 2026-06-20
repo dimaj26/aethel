@@ -10,8 +10,9 @@ def test_defaults_when_no_file(tmp_path):
     assert cfg.entity_types == set(DEFAULT_ENTITY_TYPES)
     assert cfg.relation_types == set(DEFAULT_RELATION_TYPES)
     assert cfg.structure_enforce == "error"
-    assert cfg.artifact_lang == "en"
-    assert cfg.report_lang == "ru"
+    assert cfg.artifact_lang == "any"
+    assert cfg.report_lang == "any"
+    assert cfg.artifact_whitelist == []
 
 
 def test_custom_ontology_replaces_defaults(tmp_path):

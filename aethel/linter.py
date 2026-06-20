@@ -16,9 +16,6 @@ YELLOW = "\033[93m"
 RED = "\033[91m"
 RESET = "\033[0m"
 
-# Whitelist for Cyrillic words permitted in plans and checklists
-PLAN_CYRILLIC_WHITELIST = {"шэф", "теңир-тоо", "тенир-тоо", "теңир", "тоо", "aethel"}
-
 CYRILLIC_WORD_RE = re.compile(r"\b[а-яА-ЯёЁәӘіІңҢғҒүҮұҰқҚөӨһҺ\-]+\b")
 CYRILLIC_CHAR_RE = re.compile(r"[а-яА-ЯёЁәӘіІңҢғҒүҮұҰқҚөӨһҺ]")
 
@@ -50,9 +47,10 @@ def _heading_present(content: str, keyword: str) -> bool:
     return bool(pattern.search(content))
 
 
-def _cyrillic_violations(content: str) -> list[str]:
+def _cyrillic_violations(content: str, whitelist: list[str]) -> list[str]:
     words = CYRILLIC_WORD_RE.findall(content)
-    return [w for w in words if w.lower() not in PLAN_CYRILLIC_WHITELIST]
+    allowed = {w.lower() for w in whitelist}
+    return [w for w in words if w.lower() not in allowed]
 
 
 def _artifact_language_warning(content: str, cfg: AethelConfig, artifact_name: str) -> str | None:
@@ -60,7 +58,7 @@ def _artifact_language_warning(content: str, cfg: AethelConfig, artifact_name: s
     if cfg.artifact_lang == "any":
         return None
     if cfg.artifact_lang == "en":
-        violators = _cyrillic_violations(content)
+        violators = _cyrillic_violations(content, cfg.artifact_whitelist)
         if violators:
             unique = sorted(set(violators))
             display = ", ".join(unique[:10]) + ("..." if len(unique) > 10 else "")
@@ -130,9 +128,9 @@ def check_checklist_file(workspace_path: str, cfg: AethelConfig | None = None) -
     # Last task check
     last_status, last_text = tasks[-1]
     cleaned_last_text = re.sub(r"[`_*]", "", last_text).lower()
-    valid_last_items = ["run checklist-linter", "run prompt-linter", "run prompt linter", "запуск линтера-чеклиста"]
+    valid_last_items = ["run checklist-linter", "run prompt-linter", "run prompt linter"]
     if not any(item in cleaned_last_text for item in valid_last_items):
-        errors.append("Error: Last item must be 'run checklist-linter' or 'запуск линтера-чеклиста'.")
+        errors.append("Error: Last item must be 'run checklist-linter' (or 'run prompt-linter').")
 
     warn = _artifact_language_warning(content, cfg, "checklist")
     if warn:

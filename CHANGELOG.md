@@ -28,6 +28,11 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 - Polygon scenarios F (custom `aethel.toml` ontology) and G (non-destructive update).
 
 ### Changed
+- De-projected the library: removed the hard-coded Teñir-Too Cyrillic whitelist and Russian
+  phrases from the linter, and the "respond in Russian" / Russian verdict labels from the shipped
+  proposal-analysis skill. Language defaults are now neutral (`artifact_lang`/`report_lang` default
+  to `"any"` — no check unless configured); allowed words for `"en"` mode move to a configurable
+  `[language] whitelist` (default empty).
 - `aethel update` is now non-destructive: it refreshes only the managed block in `AETHEL.md`
   (delimited by `AETHEL:MANAGED` markers), merges `.agents` without deleting user-added files,
   and preserves recipe addenda and custom rules across upgrades.
