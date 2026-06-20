@@ -58,9 +58,16 @@ If this is a new project or has no legacy prompt/rule files:
 
 ### Case C: Library Upgrade & Rules Merging
 If you are upgrading from an older version of Aethel:
-1. **Compare Rules**: Compare the backup of your old rules in `AETHEL.md.bak.<timestamp>` with the new updated `AETHEL.md`.
-2. **Merge Customizations**: Merge any project-specific rules, custom overrides, or custom prefixes from the backup file into the new `AETHEL.md`.
-3. **Verify**: Ensure that the rule namespaces (`[G-xxx]`, `[C-xxx]`, `[M-xxx]`) and constraints are correctly aligned.
+1. **Automatic Merge**: `aethel update` only refreshes the managed core block (between the
+   `AETHEL:MANAGED:BEGIN/END id=aethel-core` markers). Any project-specific rules you placed
+   BELOW that block, plus recipe addenda, are preserved automatically. A timestamped backup
+   (`AETHEL.md.bak.<timestamp>`) is written regardless.
+2. **Review the Diff**: Compare the backup with the new `AETHEL.md` to confirm the refreshed
+   core rules do not conflict with your customizations.
+3. **Tune Policy (optional)**: Adjust the linter's ontology, required headers, or language policy
+   in `aethel.toml` if your stack needs types/sections beyond the defaults.
+4. **Verify**: Ensure that the rule namespaces (`[G-xxx]`, `[C-xxx]`, `[M-xxx]`) and constraints
+   are correctly aligned, then delete this file.
 
 ---
 

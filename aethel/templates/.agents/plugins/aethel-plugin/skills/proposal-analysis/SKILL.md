@@ -58,7 +58,7 @@ All proposals scored on three criteria. Each: 0–2. Total: **0–6**.
 
 | Criterion | 0 — Fail | 1 — Acceptable | 2 — Optimal |
 |---|---|---|---|
-| **Compliance** — alignment with active reference frame | Violates Core Philosophy, taboos in GEMINI.md, or reference standards in memory.json | Minor deviations; no structural/taboo violations | Full alignment; zero redundancy; zero conflicts |
+| **Compliance** — alignment with active reference frame | Violates Core Philosophy, taboos in AETHEL.md, or reference standards in memory.json | Minor deviations; no structural/taboo violations | Full alignment; zero redundancy; zero conflicts |
 | **Value** — measurable benefit delivered | Solves no real problem, or duplicates existing functionality | Partially solves the problem, or with unnecessary complexity | Solves directly and completely within defined scope |
 | **Footprint** — impact on existing codebase | Modifies multiple core files or introduces systemic coupling | Modifies one existing file or adds manageable dependency | New module only, or minimal localized change |
 
@@ -125,4 +125,4 @@ All proposals scored on three criteria. Each: 0–2. Total: **0–6**.
 
 ### Language
 - **Russian** (Русский) for all responses.
-- Every conclusion must include a concrete "Why" — grounded in a specific Core Philosophy principle, a rule from GEMINI.md/CONTEXT.md, or a pattern/node in memory.json.
+- Every conclusion must include a concrete "Why" — grounded in a specific Core Philosophy principle, a rule from AETHEL.md/CONTEXT.md, or a pattern/node in memory.json.

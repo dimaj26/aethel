@@ -6,8 +6,10 @@ Aethel is a lightweight, pragmatically designed context and prompt management bo
 
 ## 1. File Structure
 
-* **`.gitattributes`**: Configures Git to treat `memory.json` as a binary file to hide noisy JSON diffs.
-* **`GEMINI.md` / `CLAUDE.md`**: Human-written instructions containing decision routing, RNA-Blueprint plan templates, and critical coding taboos.
+* **`.gitattributes`**: Configures Git to treat `memory.json` as a binary file (`memory.json binary`) to hide noisy JSON diffs.
+* **`AETHEL.md`**: Canonical human-written orchestrator — decision routing, RNA-Blueprint plan templates, and critical coding taboos.
+* **`GEMINI.md` / `CLAUDE.md`**: Redirect stubs that point the agent at `AETHEL.md`.
+* **`aethel.toml`** *(optional)*: Linter policy — ontology (entity/relation types), required-header keywords, and language rules. Omit to use built-in defaults.
 * **`CONTEXT.md`**: Compact technical summary (under 150 lines) referencing project layouts, DDL schemas, and key paths.
 * **`memory.json`**: Newline-delimited JSON graph representing the AI agent's semantic knowledge database, managed via MCP.
 

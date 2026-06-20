@@ -1,11 +1,6 @@
-<!-- AETHEL:MANAGED:BEGIN id=aethel-core -->
 # Aethel Development Orchestrator & AI Protocol (AETHEL.md)
 
 Welcome, AI Developer. This file is the official human-written orchestrator and rulebook. It defines your behavioral boundaries, decision routing, planning blueprints, and development standards.
-
-> The block between the AETHEL:MANAGED markers is owned by `aethel update` and will be
-> overwritten on upgrade. Add project-specific rules BELOW the closing marker — that
-> content is preserved across updates.
 
 ---
 
@@ -24,11 +19,14 @@ When the user issues a prompt, silently categorize the work into one of three ro
   2. Create or update `implementation_plan.md` using the **RNA-Blueprint** format (see section 2).
   3. Specify any open questions or design decisions.
   4. **Plan Linting**: Right after generating/updating the plan, run:
-     `python prompt_linter.py` or the workspace linter command.
+     `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage plan`
      Correct any errors before requesting user approval.
   5. Halt and wait for user approval before modifying code.
   6. Upon approval, create `task.md` and begin execution in 3–5 step chunks.
-  7. **Checklist Linting**: Once all implementation steps are finished and all tasks in `task.md` are completed, run the workspace linter.
+  7. **Checklist Linting**: Once all implementation steps are finished and all tasks in `task.md` are completed, run:
+     `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage checklist`
+  8. **Report Linting**: After generating the walkthrough report (`walkthrough.md`), run:
+     `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage report`
 
 ### Route C: Docs Update (MCP-driven Knowledge Graph) — MANDATORY post-step
 * **Criteria**: Any changes to database schemas, API surfaces, module structures, business logic, or code patterns.
@@ -37,7 +35,7 @@ When the user issues a prompt, silently categorize the work into one of three ro
   * Do NOT edit `memory.json` manually (this risks syntax vandalism).
   * Use the Memory MCP Server tools (`create_entities`, `create_relations`, `add_observations`) to document new structures or update existing ones.
   * Use the deletion tools (`delete_entities`, `delete_relations`, `delete_observations`) to prune and clean up stale, deprecated, or replaced rules, observations, and entities whenever refactoring or deleting codebase structures.
-  * Reflect high-level structural changes in `CONTEXT.md`; for human-readable release changes, append to `CHANGELOG.md`.
+  * Reflect high-level structural changes in `CONTEXT.md`; for human-readable release changes, append to [CHANGELOG.md](file:///c:/aethel/CHANGELOG.md).
   * If a commit is genuinely spec-irrelevant (typo, formatting), bypass the guard explicitly with `AETHEL_SKIP_SYNC=1 git commit ...` — do not disable the check.
 
 ---
@@ -58,10 +56,7 @@ Every complex plan must be structured as follows:
 - Logic, risks, edge cases.
 
 ## Contextual Constraints (CC)
-- Reference specific rules using the namespace tag format to save tokens and prevent line-shift errors:
-  - `[G-xxx]` for Orchestrator Rules (e.g. `[G-Taboo1]`, `[G-GW1]`) from AETHEL.md.
-  - `[C-xxx]` for Technical Layout Rules (e.g. `[C-DDL]`) from CONTEXT.md.
-  - `[M-xxx]` for Domain Rules (e.g. `[M-PL-6.20]`) from memory.json.
+- Extract relevant rules from local configurations and memory.json.
 
 ## Proposed Changes
 ### [Component/Module Name]
@@ -70,7 +65,7 @@ Every complex plan must be structured as follows:
 
 ## Verification Plan & TDD Reproducer
 ### Automated Tests
-- Command to run tests. Explicitly name the reproducing test file/case.
+- Command to run tests (e.g., `pytest`, `npm test`). Explicitly name the reproducing test file and test case name that reproduces the issue before code changes are applied.
 ### Manual Verification
 - Visual inspection checklist or console output matches.
 ```
@@ -107,7 +102,7 @@ Every complex plan must be structured as follows:
 7. **Clean Git Attributes**: Do not remove `.gitattributes` or bypass binary masking of database files.
 8. **Fail-Fast Error Handling**: Never catch exceptions silently. Always log with tracebacks and propagate where appropriate.
 9. **Keep Context.md Under 150 Lines**: Do not dump technical details into `CONTEXT.md` that belong in the memory knowledge graph.
-10. **Linter Compliance**: Do not ignore warnings from the linter. Fix them before finishing.
+10. **Linter Compliance**: Do not ignore warnings from the `prompt_linter.py` script. Fix them before finishing.
 
 ---
 
@@ -116,8 +111,4 @@ Every complex plan must be structured as follows:
 * **Token-efficient.** If you modified a file using tools — do NOT paste it in chat. Summary only.
 * **Lossless.** Preserve all existing comments/docstrings not related to the change.
 * **PowerShell only.** All terminal commands must use PowerShell syntax (Windows).
-* **venv**: Call the local environment's python/pip directly for all Python executions.
-<!-- AETHEL:MANAGED:END id=aethel-core -->
-
-<!-- Add project-specific rules, overrides and custom prefixes BELOW this line. -->
-<!-- `aethel update` preserves everything outside the AETHEL:MANAGED block above. -->
+* **venv**: Call `.\venv\Scripts\python.exe` directly for all Python executions.

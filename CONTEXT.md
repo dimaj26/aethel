@@ -7,12 +7,15 @@ This is the compact technical index for the Aethel system. Keep it under 150 lin
 ## 1. Project Directory Structure & Tech Stack
 
 ```text
-├── .gitattributes         # Masking memory.json from git diffs
-├── GEMINI.md              # AI Orchestrator & Development rules (Human-edited)
+├── .gitattributes         # Masking memory.json from git diffs (memory.json binary)
+├── AETHEL.md              # AI Orchestrator & Development rules (Human-edited, canonical)
+├── GEMINI.md / CLAUDE.md  # Redirect stubs pointing at AETHEL.md
+├── aethel.toml            # Optional linter policy (ontology / structure / language)
 ├── CONTEXT.md             # Technical context core (Under 150 lines, Human-edited)
 ├── CHANGELOG.md           # Project history (Human-edited)
 ├── memory.json            # AI Knowledge Graph (MCP-generated JSON Lines)
-└── prompt_linter.py       # Local CLI integrity linter
+├── aethel/                # CLI package: cli.py, linter.py, config.py, templates/
+└── prompt_linter.py       # Local CLI integrity linter (wrapper around aethel.linter)
 ```
 
 * **Core Stack**: Python 3.11+ / Node.js 20+

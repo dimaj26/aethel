@@ -10,9 +10,13 @@ authors = [
     { name = "Aethel Team" }
 ]
 readme = "README.md"
-requires-python = ">=3.8"
+# 3.11+ is required: the linter parses aethel.toml with the stdlib `tomllib`
+# module (added in 3.11) and uses PEP 585 builtin generics in annotations.
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"
 ]
@@ -20,6 +24,15 @@ dependencies = []
 
 [project.scripts]
 aethel = "aethel.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["aethel*"]
+
+[tool.setuptools.package-data]
+aethel = ["templates/**"]
 
 [tool.mypy]
 python_version = "3.11"

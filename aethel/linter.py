@@ -1,9 +1,13 @@
 import argparse
+import fnmatch
 import json
 import os
 import re
+import subprocess
 import sys
 from typing import Any
+
+from aethel.config import AethelConfig, load_config
 
 # ANSI Color Codes
 GREEN = "\033[92m"
@@ -13,6 +17,9 @@ RESET = "\033[0m"
 
 # Whitelist for Cyrillic words permitted in plans and checklists
 PLAN_CYRILLIC_WHITELIST = {"шэф", "теңир-тоо", "тенир-тоо", "теңир", "тоо", "aethel"}
+
+CYRILLIC_WORD_RE = re.compile(r"\b[а-яА-ЯёЁәӘіІңҢғҒүҮұҰқҚөӨһҺ\-]+\b")
+CYRILLIC_CHAR_RE = re.compile(r"[а-яА-ЯёЁәӘіІңҢғҒүҮұҰқҚөӨһҺ]")
 
 
 def print_success(msg: str) -> None:
@@ -27,10 +34,48 @@ def print_error(msg: str) -> None:
     print(f"{RED}[FAIL] {msg}{RESET}")
 
 
-def check_plan_file(workspace_path: str) -> tuple[list[str], list[str]]:
+def _resolve_cfg(workspace_path: str, cfg: AethelConfig | None) -> AethelConfig:
+    return cfg if cfg is not None else load_config(workspace_path)
+
+
+def _heading_present(content: str, keyword: str) -> bool:
+    """True if any Markdown heading line contains the keyword (case-insensitive).
+
+    Intentionally lenient: it does not pin the section number or exact title, so
+    a workspace may renumber, rename or localize headings without failing the
+    linter, as long as the conceptual section is still there.
+    """
+    pattern = re.compile(r"^#{1,6}\s+.*" + re.escape(keyword), re.MULTILINE | re.IGNORECASE)
+    return bool(pattern.search(content))
+
+
+def _cyrillic_violations(content: str) -> list[str]:
+    words = CYRILLIC_WORD_RE.findall(content)
+    return [w for w in words if w.lower() not in PLAN_CYRILLIC_WHITELIST]
+
+
+def _artifact_language_warning(content: str, cfg: AethelConfig, artifact_name: str) -> str | None:
+    """Return a language warning for plan/checklist artifacts, honoring config."""
+    if cfg.artifact_lang == "any":
+        return None
+    if cfg.artifact_lang == "en":
+        violators = _cyrillic_violations(content)
+        if violators:
+            unique = sorted(set(violators))
+            display = ", ".join(unique[:10]) + ("..." if len(unique) > 10 else "")
+            return f"Cyrillic words found in {artifact_name}: {display}. {artifact_name} should be in English."
+        return None
+    if cfg.artifact_lang == "ru":
+        if not CYRILLIC_CHAR_RE.search(content):
+            return f"No Cyrillic characters found in {artifact_name}. {artifact_name} should be in Russian."
+    return None
+
+
+def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tuple[list[str], list[str]]:
     """Validates implementation_plan.md format and language."""
-    errors = []
-    warnings = []
+    cfg = _resolve_cfg(workspace_path, cfg)
+    errors: list[str] = []
+    warnings: list[str] = []
     plan_path = os.path.join(workspace_path, "implementation_plan.md")
 
     if not os.path.exists(plan_path):
@@ -47,25 +92,17 @@ def check_plan_file(workspace_path: str) -> tuple[list[str], list[str]]:
         if not re.search(r"^##\s+" + re.escape(h2), content, re.MULTILINE):
             errors.append(f"Missing required H2 section: '## {h2}'.")
 
-    # Language check
-    cyrillic_words = re.findall(r"\b[а-яА-ЯёЁәӘіІңҢғҒүҮұҰқҚөӨһҺ\-]+\b", content)
-    violating_words = [w for w in cyrillic_words if w.lower() not in PLAN_CYRILLIC_WHITELIST]
-    if violating_words:
-        unique_violators = sorted(list(set(violating_words)))
-        display_words = ", ".join(unique_violators[:10])
-        if len(unique_violators) > 10:
-            display_words += "..."
-        warnings.append(
-            f"Cyrillic words found in plan: {display_words}. "
-            "Implementation plan should be in English."
-        )
+    warn = _artifact_language_warning(content, cfg, "plan")
+    if warn:
+        warnings.append(warn)
     return errors, warnings
 
 
-def check_checklist_file(workspace_path: str) -> tuple[list[str], list[str]]:
+def check_checklist_file(workspace_path: str, cfg: AethelConfig | None = None) -> tuple[list[str], list[str]]:
     """Validates task.md format and language."""
-    errors = []
-    warnings = []
+    cfg = _resolve_cfg(workspace_path, cfg)
+    errors: list[str] = []
+    warnings: list[str] = []
     task_path = os.path.join(workspace_path, "task.md")
 
     if not os.path.exists(task_path):
@@ -96,25 +133,17 @@ def check_checklist_file(workspace_path: str) -> tuple[list[str], list[str]]:
     if not any(item in cleaned_last_text for item in valid_last_items):
         errors.append("Error: Last item must be 'run checklist-linter' or 'запуск линтера-чеклиста'.")
 
-    # Language check
-    cyrillic_words = re.findall(r"\b[а-яА-ЯёЁәӘіІңҢғҒүҮұҰқҚөӨһҺ\-]+\b", content)
-    violating_words = [w for w in cyrillic_words if w.lower() not in PLAN_CYRILLIC_WHITELIST]
-    if violating_words:
-        unique_violators = sorted(list(set(violating_words)))
-        display_words = ", ".join(unique_violators[:10])
-        if len(unique_violators) > 10:
-            display_words += "..."
-        warnings.append(
-            f"Cyrillic words found in checklist: {display_words}. "
-            "Checklist (task.md) should be in English."
-        )
+    warn = _artifact_language_warning(content, cfg, "checklist")
+    if warn:
+        warnings.append(warn)
     return errors, warnings
 
 
-def check_report_file(workspace_path: str) -> tuple[list[str], list[str]]:
+def check_report_file(workspace_path: str, cfg: AethelConfig | None = None) -> tuple[list[str], list[str]]:
     """Validates walkthrough.md format and language."""
-    errors = []
-    warnings = []
+    cfg = _resolve_cfg(workspace_path, cfg)
+    errors: list[str] = []
+    warnings: list[str] = []
     walkthrough_path = os.path.join(workspace_path, "walkthrough.md")
 
     if not os.path.exists(walkthrough_path):
@@ -129,22 +158,25 @@ def check_report_file(workspace_path: str) -> tuple[list[str], list[str]]:
         if not pattern.search(content):
             errors.append(f"Missing required section or heading: '{sec}'.")
 
-    has_cyrillic = bool(re.search(r"[а-яА-ЯёЁәӘіІңҢғҒүҮұҰқҚөӨһҺ]", content))
-    if not has_cyrillic:
-        warnings.append("No Cyrillic characters found in report. Walkthrough must be in Russian.")
+    has_cyrillic = bool(CYRILLIC_CHAR_RE.search(content))
+    if cfg.report_lang == "ru" and not has_cyrillic:
+        warnings.append("No Cyrillic characters found in report. Walkthrough should be in Russian.")
+    elif cfg.report_lang == "en" and has_cyrillic:
+        warnings.append("Cyrillic characters found in report. Walkthrough should be in English.")
 
     return errors, warnings
 
 
-def check_plan_stage(workspace_path: str) -> bool:
+def check_plan_stage(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
     """Validates plan and task formats if they exist."""
+    cfg = _resolve_cfg(workspace_path, cfg)
     print("--- Running Plan Stage Validation ---")
     plan_path = os.path.join(workspace_path, "implementation_plan.md")
     task_path = os.path.join(workspace_path, "task.md")
 
     plan_ok = True
     if os.path.exists(plan_path):
-        errs, warns = check_plan_file(workspace_path)
+        errs, warns = check_plan_file(workspace_path, cfg)
         for w in warns:
             print_warning(w)
         for e in errs:
@@ -157,7 +189,7 @@ def check_plan_stage(workspace_path: str) -> bool:
 
     task_ok = True
     if os.path.exists(task_path):
-        errs, warns = check_checklist_file(workspace_path)
+        errs, warns = check_checklist_file(workspace_path, cfg)
         for w in warns:
             print_warning(w)
         for e in errs:
@@ -171,14 +203,18 @@ def check_plan_stage(workspace_path: str) -> bool:
     return plan_ok and task_ok
 
 
-def check_memory_integrity(workspace_path: str) -> bool:
+def check_memory_integrity(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
     """Validates memory.json graph integrity in the workspace."""
+    cfg = _resolve_cfg(workspace_path, cfg)
     print("--- Running Memory Graph Integrity Validation ---")
     memory_path = os.path.join(workspace_path, "memory.json")
 
     if not os.path.exists(memory_path):
         print_error(f"Memory database '{memory_path}' not found!")
         return False
+
+    allowed_entity_types = sorted(cfg.entity_types)
+    allowed_relation_types = sorted(cfg.relation_types)
 
     entities: dict[str, dict[str, Any]] = {}
     relations: list[dict[str, Any]] = []
@@ -212,13 +248,12 @@ def check_memory_integrity(workspace_path: str) -> bool:
                 else:
                     entities[name] = {"entityType": entity_type, "observations": observations, "line": line_number}
 
-                ALLOWED_ENTITY_TYPES = {"Framework", "Tool", "Layer", "Component", "DataModel", "ExternalService", "Route"}
-                if entity_type not in ALLOWED_ENTITY_TYPES:
-                    print_error(f"Line {line_number}: Entity '{name}' has invalid entityType '{entity_type}'. Allowed types: {sorted(list(ALLOWED_ENTITY_TYPES))}")
+                if entity_type not in cfg.entity_types:
+                    print_error(f"Line {line_number}: Entity '{name}' has invalid entityType '{entity_type}'. Allowed types: {allowed_entity_types}")
                     has_errors = True
 
                 for obs in observations:
-                    if any(placeholder in obs for placeholder in ["[Insert", "[e.g.", "[your_", "[note_path]", "[vault_name]"]):
+                    if any(placeholder in obs for placeholder in cfg.placeholder_markers):
                         print_warning(f"Line {line_number}: Entity '{name}' observation contains placeholder: '{obs}'")
 
             elif record_type == "relation":
@@ -232,9 +267,8 @@ def check_memory_integrity(workspace_path: str) -> bool:
                 else:
                     relations.append({"from": from_node, "to": to_node, "relationType": rel_type, "line": line_number})
 
-                ALLOWED_RELATION_TYPES = {"uses", "defines", "calls", "renders", "tests", "stores", "part_of", "depends_on"}
-                if rel_type and rel_type not in ALLOWED_RELATION_TYPES:
-                    print_error(f"Line {line_number}: Relation '{from_node}' -> '{to_node}' has invalid relationType '{rel_type}'. Allowed types: {sorted(list(ALLOWED_RELATION_TYPES))}")
+                if rel_type and rel_type not in cfg.relation_types:
+                    print_error(f"Line {line_number}: Relation '{from_node}' -> '{to_node}' has invalid relationType '{rel_type}'. Allowed types: {allowed_relation_types}")
                     has_errors = True
             else:
                 print_warning(f"Line {line_number}: Unknown record type '{record_type}'. Skipping.")
@@ -266,31 +300,13 @@ def check_memory_integrity(workspace_path: str) -> bool:
         if entity_name not in connected_entities:
             print_warning(f"Orphan entity detected: '{entity_name}' (no relations link to or from it).")
 
-    # Check 4: Cycle detection
+    # Check 4: Cycle detection (iterative DFS to avoid recursion limits on large graphs)
     adj: dict[str, list[str]] = {name: [] for name in entities}
     for rel in relations:
         if rel["from"] in adj:
             adj[rel["from"]].append(rel["to"])
 
-    visited: dict[str, int] = {}
-    cycle_detected = False
-
-    def dfs(node: str) -> None:
-        nonlocal cycle_detected
-        visited[node] = 1
-        for neighbor in adj.get(node, []):
-            if visited.get(neighbor) == 1:
-                print_error(f"Dependency cycle detected involving node: '{node}' -> '{neighbor}'.")
-                cycle_detected = True
-            elif neighbor not in visited:
-                dfs(neighbor)
-        visited[node] = 2
-
-    for node in entities:
-        if node not in visited:
-            dfs(node)
-
-    if cycle_detected:
+    if _has_cycle(adj):
         has_errors = True
 
     if not has_errors:
@@ -300,71 +316,101 @@ def check_memory_integrity(workspace_path: str) -> bool:
         return False
 
 
-def check_workspace_hygiene(workspace_path: str, other_checks_passed: bool = True) -> bool:
+def _has_cycle(adj: dict[str, list[str]]) -> bool:
+    """Iterative DFS cycle detection. Reports the first back-edge found.
+
+    States: 0/absent = unvisited, 1 = on current stack, 2 = fully explored.
+    """
+    visited: dict[str, int] = {}
+    cycle_detected = False
+
+    for start in adj:
+        if start in visited:
+            continue
+        # Stack holds (node, iterator over neighbors).
+        stack: list[tuple[str, Any]] = [(start, iter(adj.get(start, [])))]
+        visited[start] = 1
+        while stack:
+            node, neighbors = stack[-1]
+            advanced = False
+            for neighbor in neighbors:
+                state = visited.get(neighbor)
+                if state == 1:
+                    print_error(f"Dependency cycle detected involving node: '{node}' -> '{neighbor}'.")
+                    cycle_detected = True
+                elif state is None:
+                    visited[neighbor] = 1
+                    stack.append((neighbor, iter(adj.get(neighbor, []))))
+                    advanced = True
+                    break
+            if not advanced:
+                visited[node] = 2
+                stack.pop()
+
+    return cycle_detected
+
+
+def _check_required_headers(
+    file_label: str, content: str, keywords: list[str], cfg: AethelConfig
+) -> bool:
+    """Check that each required heading keyword is present. Returns True if a
+    hard error was raised (only when structure_enforce == 'error')."""
+    if cfg.structure_enforce == "off":
+        return False
+    raised_error = False
+    for keyword in keywords:
+        if not _heading_present(content, keyword):
+            msg = f"{file_label} is missing required section heading containing: '{keyword}'"
+            if cfg.structure_enforce == "warn":
+                print_warning(msg)
+            else:
+                print_error(msg)
+                raised_error = True
+    return raised_error
+
+
+def check_workspace_hygiene(
+    workspace_path: str, other_checks_passed: bool = True, cfg: AethelConfig | None = None
+) -> bool:
     """Validates workspace core files, Git configuration, and cleans up onboarding files."""
+    cfg = _resolve_cfg(workspace_path, cfg)
     print("--- Running Workspace Hygiene Validation ---")
     has_errors = False
 
     # 1. Verify core files presence
     core_files = ["AETHEL.md", "CONTEXT.md", "memory.json", ".gitattributes"]
-    for f in core_files:
-        fpath = os.path.join(workspace_path, f)
+    for core_file in core_files:
+        fpath = os.path.join(workspace_path, core_file)
         if not os.path.exists(fpath):
-            print_error(f"Core Aethel file '{f}' is missing from the workspace root.")
+            print_error(f"Core Aethel file '{core_file}' is missing from the workspace root.")
             has_errors = True
         else:
-            print_success(f"Core file present: {f}")
+            print_success(f"Core file present: {core_file}")
 
-    # 1.1 Verify CONTEXT.md does not contain boilerplate placeholders
+    # 1.1 Verify CONTEXT.md does not contain boilerplate placeholders + required headers
     context_path = os.path.join(workspace_path, "CONTEXT.md")
     if os.path.exists(context_path):
         try:
-            with open(context_path, "r", encoding="utf-8") as f:
-                ctx_content = f.read()
+            with open(context_path, "r", encoding="utf-8") as fh:
+                ctx_content = fh.read()
             placeholders = ["[e.g. Next.js 15", "[Insert SQL DDL"]
             for ph in placeholders:
                 if ph in ctx_content:
                     print_warning(f"CONTEXT.md contains default template placeholder '{ph}'. Please populate it with actual project details.")
-        except Exception as e:
-            print_warning(f"Could not read CONTEXT.md for boilerplate verification: {e}")
-
-    # 1.2 Verify CONTEXT.md required headers presence
-    if os.path.exists(context_path):
-        try:
-            with open(context_path, "r", encoding="utf-8") as f:
-                ctx_content = f.read()
-            required_h2s_context = [
-                (r"^##\s+1\.\s+Project\s+Directory\s+Structure", "## 1. Project Directory Structure & Tech Stack"),
-                (r"^##\s+2\.\s+Core\s+Database\s+Schema", "## 2. Core Database Schema (DDL reference)"),
-                (r"^##\s+3\.\s+Top-10\s+Critical\s+Coding\s+Taboos", "## 3. Top-10 Critical Coding Taboos (Project References / Reference Checklist)"),
-                (r"^##\s+4\.\s+Obsidian\s+RAG\s+Navigation\s+Map", "## 4. Obsidian RAG Navigation Map")
-            ]
-            for pattern, h2_name in required_h2s_context:
-                if not re.search(pattern, ctx_content, re.MULTILINE):
-                    print_error(f"CONTEXT.md is missing required section: '{h2_name}'")
-                    has_errors = True
+            if _check_required_headers("CONTEXT.md", ctx_content, cfg.context_headers, cfg):
+                has_errors = True
         except Exception as e:
             print_error(f"Failed to read CONTEXT.md for structural checks: {e}")
             has_errors = True
 
-    # 1.3 Verify AETHEL.md required headers presence
+    # 1.2 Verify AETHEL.md required headers presence
     aethel_path = os.path.join(workspace_path, "AETHEL.md")
     if os.path.exists(aethel_path):
         try:
-            with open(aethel_path, "r", encoding="utf-8") as f:
-                aethel_content = f.read()
-            required_h2s_aethel = [
-                (r"^##\s+1\.\s+Decision\s+Routing\s+Protocols", "## 1. Decision Routing Protocols"),
-                (r"^##\s+2\.\s+RNA-Blueprint\s+Plan\s+Template", "## 2. RNA-Blueprint Plan Template (RNA-1)"),
-                (r"^##\s+3\.\s+Debugging\s+Philosophy", "## 3. Debugging Philosophy (Bug Fixes)"),
-                (r"^##\s+4\.\s+Git\s+Commit\s+&\s+Workflow\s+Protocol", "## 4. Git Commit & Workflow Protocol (GW-1)"),
-                (r"^##\s+5\.\s+Top-10\s+Critical\s+Coding\s+Taboos", "## 5. Top-10 Critical Coding Taboos (Hard Constraints)"),
-                (r"^##\s+6\.\s+Response\s+Rules", "## 6. Response Rules")
-            ]
-            for pattern, h2_name in required_h2s_aethel:
-                if not re.search(pattern, aethel_content, re.MULTILINE):
-                    print_error(f"AETHEL.md is missing required section: '{h2_name}'")
-                    has_errors = True
+            with open(aethel_path, "r", encoding="utf-8") as fh:
+                aethel_content = fh.read()
+            if _check_required_headers("AETHEL.md", aethel_content, cfg.aethel_headers, cfg):
+                has_errors = True
         except Exception as e:
             print_error(f"Failed to read AETHEL.md for structural checks: {e}")
             has_errors = True
@@ -373,8 +419,8 @@ def check_workspace_hygiene(workspace_path: str, other_checks_passed: bool = Tru
     gitattrib_path = os.path.join(workspace_path, ".gitattributes")
     if os.path.exists(gitattrib_path):
         try:
-            with open(gitattrib_path, "r", encoding="utf-8") as f:
-                content = f.read()
+            with open(gitattrib_path, "r", encoding="utf-8") as fh:
+                content = fh.read()
             if "memory.json" not in content:
                 print_error("File '.gitattributes' exists but does not configure 'memory.json' merge rule.")
                 has_errors = True
@@ -409,8 +455,8 @@ def check_workspace_hygiene(workspace_path: str, other_checks_passed: bool = Tru
         dfpath = os.path.join(workspace_path, df)
         if os.path.exists(dfpath):
             try:
-                with open(dfpath, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
+                with open(dfpath, "r", encoding="utf-8", errors="ignore") as fh:
+                    content = fh.read()
                 if "aethel" in content.lower():
                     dep_found = True
                     break
@@ -422,13 +468,103 @@ def check_workspace_hygiene(workspace_path: str, other_checks_passed: bool = Tru
     return not has_errors
 
 
+def _git(workspace_path: str, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=workspace_path,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _in_git_repo(workspace_path: str) -> bool:
+    try:
+        res = _git(workspace_path, "rev-parse", "--is-inside-work-tree")
+    except (OSError, ValueError):
+        return False
+    return res.returncode == 0 and res.stdout.strip() == "true"
+
+
+def _has_head(workspace_path: str) -> bool:
+    try:
+        return _git(workspace_path, "rev-parse", "--verify", "-q", "HEAD").returncode == 0
+    except (OSError, ValueError):
+        return False
+
+
+def _staged_files(workspace_path: str) -> list[str]:
+    try:
+        res = _git(workspace_path, "diff", "--cached", "--name-only", "--diff-filter=ACMR")
+    except (OSError, ValueError):
+        return []
+    if res.returncode != 0:
+        return []
+    return [line.strip() for line in res.stdout.splitlines() if line.strip()]
+
+
+def _matches_any(path: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatch(path, pat) for pat in patterns)
+
+
+def _classify_staged(staged: list[str], cfg: AethelConfig) -> tuple[bool, bool]:
+    """Return (code_changed, spec_changed) for the staged file set."""
+    spec_basenames = set(cfg.spec_files)
+    code_changed = False
+    spec_changed = False
+    for f in staged:
+        posix = f.replace("\\", "/")
+        if os.path.basename(posix) in spec_basenames or _matches_any(posix, cfg.spec_files):
+            spec_changed = True
+        if _matches_any(posix, cfg.sync_watched) and not _matches_any(posix, cfg.sync_ignored):
+            code_changed = True
+    return code_changed, spec_changed
+
+
+def check_spec_sync(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
+    """Pre-commit drift guard: warn/block when code is staged without a spec update.
+
+    Detects only the *presence* of a spec change in the same commit, never its
+    correctness. Stays inert outside a real commit (no git repo, no HEAD/initial
+    commit, nothing staged) so `aethel lint` and the first commit are unaffected.
+    Returns True (non-blocking) unless drift is found and enforce == 'error'.
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    if cfg.sync_enforce == "off":
+        return True
+    if os.environ.get("AETHEL_SKIP_SYNC"):
+        return True
+    if not _in_git_repo(workspace_path) or not _has_head(workspace_path):
+        return True
+    staged = _staged_files(workspace_path)
+    if not staged:
+        return True
+
+    code_changed, spec_changed = _classify_staged(staged, cfg)
+    if not (code_changed and not spec_changed):
+        return True
+
+    print("--- Running Spec-Sync Drift Validation ---")
+    msg = (
+        "Spec drift: code files are staged but no spec file "
+        f"({', '.join(cfg.spec_files)}) was updated in this commit. "
+        "Update the knowledge graph / CONTEXT.md (Route C), or set "
+        "AETHEL_SKIP_SYNC=1 for an intentionally spec-irrelevant commit."
+    )
+    if cfg.sync_enforce == "error":
+        print_error(msg)
+        return False
+    print_warning(msg)
+    return True
+
+
 def run_linter(workspace_path: str = ".") -> bool:
     """Invoked internally by old API calls."""
-    plan_ok = check_plan_stage(workspace_path)
+    cfg = load_config(workspace_path)
+    plan_ok = check_plan_stage(workspace_path, cfg)
     print()
-    memory_ok = check_memory_integrity(workspace_path)
+    memory_ok = check_memory_integrity(workspace_path, cfg)
     print()
-    hygiene_ok = check_workspace_hygiene(workspace_path, other_checks_passed=(plan_ok and memory_ok))
+    hygiene_ok = check_workspace_hygiene(workspace_path, other_checks_passed=(plan_ok and memory_ok), cfg=cfg)
     print()
     return plan_ok and memory_ok and hygiene_ok
 
@@ -436,7 +572,7 @@ def run_linter(workspace_path: str = ".") -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Aethel Prompt Linter for agent artifacts.")
     parser.add_argument("--dir", default=".", help="Directory containing the workspace/artifacts")
-    parser.add_argument("--stage", choices=["plan", "checklist", "report"], help="Verification stage to run")
+    parser.add_argument("--stage", choices=["plan", "checklist", "report", "sync"], help="Verification stage to run")
 
     args = parser.parse_args()
     workspace = os.path.abspath(args.dir)
@@ -445,25 +581,29 @@ def main() -> None:
         print(f"Error: Directory {workspace} does not exist.")
         sys.exit(1)
 
-    errors = []
-    warnings = []
+    cfg = load_config(workspace)
+    errors: list[str] = []
+    warnings: list[str] = []
 
     if args.stage == "plan":
-        errors, warnings = check_plan_file(workspace)
+        errors, warnings = check_plan_file(workspace, cfg)
     elif args.stage == "checklist":
-        errors, warnings = check_checklist_file(workspace)
+        errors, warnings = check_checklist_file(workspace, cfg)
     elif args.stage == "report":
-        errors, warnings = check_report_file(workspace)
+        errors, warnings = check_report_file(workspace, cfg)
+    elif args.stage == "sync":
+        sys.exit(0 if check_spec_sync(workspace, cfg) else 1)
     else:
         # Parameterless run / General checks (Pre-commit hook default)
-        plan_ok = check_plan_stage(workspace)
+        plan_ok = check_plan_stage(workspace, cfg)
         print()
-        memory_ok = check_memory_integrity(workspace)
+        memory_ok = check_memory_integrity(workspace, cfg)
         print()
-        hygiene_ok = check_workspace_hygiene(workspace, other_checks_passed=(plan_ok and memory_ok))
+        hygiene_ok = check_workspace_hygiene(workspace, other_checks_passed=(plan_ok and memory_ok), cfg=cfg)
         print()
+        sync_ok = check_spec_sync(workspace, cfg)
 
-        if plan_ok and memory_ok and hygiene_ok:
+        if plan_ok and memory_ok and hygiene_ok and sync_ok:
             print_success("All linter checks PASSED.")
             sys.exit(0)
         else:

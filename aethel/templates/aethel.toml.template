@@ -1,0 +1,50 @@
+# Aethel workspace configuration.
+#
+# This file is OPTIONAL. Delete it to fall back to built-in defaults, or tune
+# the values below to match your project's stack and conventions. `aethel update`
+# never overwrites this file.
+
+[ontology]
+# Allowed entityType values in memory.json. An entity with any other type fails
+# the linter. Extend this list for your stack (e.g. "Queue", "Cache").
+entity_types = [
+    "Framework", "Tool", "Layer", "Component", "DataModel", "ExternalService",
+    "Route", "Script", "Config", "Job", "Migration", "Library",
+]
+# Allowed relationType values between entities.
+relation_types = [
+    "uses", "defines", "calls", "renders", "tests", "stores", "part_of",
+    "depends_on", "configures", "extends", "implements",
+]
+
+[structure]
+# How to treat missing required headings in AETHEL.md / CONTEXT.md:
+#   "error" -> fail the linter, "warn" -> warning only, "off" -> skip the check.
+enforce = "error"
+# A section is considered present if any heading line contains the keyword
+# (case-insensitive). Section numbers and exact titles are NOT enforced.
+context_headers = ["Directory Structure", "Database Schema", "Coding Taboos", "Navigation Map"]
+aethel_headers = ["Decision Routing", "RNA-Blueprint", "Debugging", "Git Commit", "Coding Taboos", "Response Rules"]
+
+[language]
+# Language policy for generated artifacts:
+#   "en"  -> must be English (Cyrillic words flagged)
+#   "ru"  -> must be Russian (absence of Cyrillic flagged)
+#   "any" -> no language check
+artifact_lang = "en"   # implementation_plan.md, task.md
+report_lang = "ru"     # walkthrough.md
+
+[sync]
+# Spec-sync drift guard, evaluated by the git pre-commit hook. If code files are
+# staged for a commit but none of `spec_files` is, the linter reminds you to
+# update the specs (Route C).
+#   "warn"  -> print a reminder, do NOT block the commit (default)
+#   "error" -> block the commit until a spec file is staged
+#   "off"   -> disable the check
+# Escape hatch for an intentionally spec-irrelevant commit: AETHEL_SKIP_SYNC=1 git commit ...
+enforce = "warn"
+# A commit "touches code" if a staged path matches `watched` and not `ignored`.
+# Globs use fnmatch over the POSIX path; `*` spans directory separators.
+watched = ["*.py", "*.ts", "*.tsx", "*.js", "*.jsx", "*.go", "*.rs", "*.java", "*.sql"]
+ignored = ["*test*", "*spec*", "*.md", "memory.json", "*.lock", "*/node_modules/*"]
+spec_files = ["memory.json", "CONTEXT.md", "AETHEL.md"]
