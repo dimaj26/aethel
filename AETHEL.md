@@ -113,6 +113,7 @@ Every complex plan must be structured as follows:
 * **Lossless.** Preserve all existing comments/docstrings not related to the change.
 * **PowerShell only.** All terminal commands must use PowerShell syntax (Windows).
 * **venv**: Call `.\venv\Scripts\python.exe` directly for all Python executions.
+* **One thesis, one agent.** When delegating analysis to a sub-agent, spawn one agent per distinct question/thesis — never bundle multiple analyses into a single agent. Relay each result separately.
 
 ---
 
