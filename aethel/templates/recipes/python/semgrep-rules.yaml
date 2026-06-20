@@ -1,0 +1,82 @@
+rules:
+  - id: ban-dynamic-imports
+    patterns:
+      - pattern-either:
+          - pattern: importlib.import_module(...)
+          - pattern: __import__(...)
+    message: "🚫 Dynamic imports are banned in project code to prevent bypassing layer boundaries."
+    languages: [python]
+    severity: ERROR
+    paths:
+      exclude:
+        - "**/tests/**/*"
+
+  - id: ban-db-in-handlers
+    patterns:
+      - pattern-either:
+          - pattern: import database
+          - pattern: from database import $ANY
+          - pattern: from database import *
+    message: "🚫 Handlers are strictly prohibited from importing the database layer directly. Use services instead."
+    languages: [python]
+    severity: ERROR
+    paths:
+      include:
+        - "**/handlers/**/*"
+
+  - id: ban-state-clear
+    pattern: await state.clear()
+    message: "🚫 Never use state.clear() as it wipes UI metadata. Use state.set_state(None) instead."
+    languages: [python]
+    severity: ERROR
+
+  - id: ban-direct-ui-calls
+    patterns:
+      - pattern-either:
+          - pattern: await $MSG.answer(...)
+          - pattern: await $MSG.reply(...)
+          - pattern: await $CB.message.edit_text(...)
+          - pattern: await $CB.message.edit_reply_markup(...)
+          - pattern: await bot.edit_message_text(...)
+          - pattern: await bot.edit_message_reply_markup(...)
+          - pattern: await bot.send_message(...)
+      - pattern-not: await callback.answer(...)
+      - pattern-not: await cb.answer(...)
+      - pattern-not: await event_or_msg.answer(...)
+    message: "🚫 Direct UI calls are prohibited in handlers. Use UIService.sterile_show, UIService.sterile_ask, or UIService.delete_msg instead."
+    languages: [python]
+    severity: ERROR
+    paths:
+      include:
+        - "**/handlers/**/*"
+      exclude:
+        - "**/handlers/errors.py"
+        - "**/handlers/announcements.py"
+
+  - id: missing-state-parameter
+    patterns:
+      - pattern-either:
+          - pattern: |
+              async def $FUNC(...):
+                  ...
+                  await UIService.sterile_show(...)
+          - pattern: |
+              async def $FUNC(...):
+                  ...
+                  await UIService.sterile_ask(...)
+          - pattern: |
+              async def $FUNC(...):
+                  ...
+                  await UIService.generic_navigator(...)
+      - pattern-not: |
+          async def $FUNC(..., state: FSMContext, ...):
+              ...
+      - pattern-not: |
+          async def $FUNC(..., state, ...):
+              ...
+    message: "🚫 Every handler calling UIService methods requiring state must declare 'state' (type FSMContext) in its arguments."
+    languages: [python]
+    severity: ERROR
+    paths:
+      include:
+        - "**/handlers/**/*"

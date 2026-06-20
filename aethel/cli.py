@@ -160,6 +160,43 @@ fi
         except Exception as e:
             print(f"Warning: could not write Git pre-commit hook: {e}")
 
+    # 7. Copy stack-specific linter recipes if requested
+    recipe = getattr(args, "recipe", None)
+    if recipe:
+        recipe_src_dir = os.path.join(TEMPLATES_DIR, "recipes", recipe)
+        if os.path.exists(recipe_src_dir):
+            print(f"Deploying standard rules and configurations for recipe '{recipe}'...")
+            
+            # Copy config files non-destructively
+            for fname in os.listdir(recipe_src_dir):
+                if fname == "AETHEL_RECIPE_ADDENDUM.md":
+                    continue
+                src_file = os.path.join(recipe_src_dir, fname)
+                dest_file = os.path.join(dest_dir, fname)
+                if os.path.exists(dest_file) and not args.force:
+                    print(f"Skipping existing linter configuration: {fname}")
+                else:
+                    try:
+                        shutil.copy2(src_file, dest_file)
+                        print(f"Created: {fname}")
+                    except Exception as e:
+                        print(f"Error copying recipe file {fname}: {e}")
+            
+            # Append AETHEL_RECIPE_ADDENDUM.md content to AETHEL.md
+            addendum_src = os.path.join(recipe_src_dir, "AETHEL_RECIPE_ADDENDUM.md")
+            aethel_path = os.path.join(dest_dir, "AETHEL.md")
+            if os.path.exists(addendum_src) and os.path.exists(aethel_path):
+                try:
+                    with open(addendum_src, "r", encoding="utf-8") as f:
+                        addendum_content = f.read()
+                    with open(aethel_path, "a", encoding="utf-8") as f:
+                        f.write(addendum_content)
+                    print("Appended recipe-specific guidelines to AETHEL.md")
+                except Exception as e:
+                    print(f"Warning: could not append recipe guidelines: {e}")
+        else:
+            print(f"Error: Recipe '{recipe}' templates not found.")
+
     print("Aethel initialization complete. Please configure your Memory MCP server path in AETHEL_ONBOARDING.md.")
 
 
@@ -264,6 +301,7 @@ def main() -> None:
     p_init = subparsers.add_parser("init", help="Initialize Aethel in a workspace")
     p_init.add_argument("path", nargs="?", default=".", help="Directory to initialize (default: current)")
     p_init.add_argument("-f", "--force", action="store_true", help="Force overwrite of existing files")
+    p_init.add_argument("-r", "--recipe", choices=["python", "javascript"], help="Deploy standard linter recipes/configs for the chosen stack")
     p_init.set_defaults(func=cmd_init)
 
     # lint subcommand

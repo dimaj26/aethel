@@ -52,6 +52,28 @@ def test_scenario_a(temp_dir):
     hook_path = os.path.join(scen_dir, ".git", "hooks", "pre-commit")
     assert os.path.exists(hook_path), "Git pre-commit hook not created"
     
+    # 2. Test recipe initialization
+    run_cmd([sys.executable, "-m", "aethel.cli", "init", "--recipe", "python"], scen_dir)
+    
+    # Verify recipe files created
+    assert os.path.exists(os.path.join(scen_dir, ".ruff.toml")), ".ruff.toml not created by python recipe"
+    assert os.path.exists(os.path.join(scen_dir, "semgrep-rules.yaml")), "semgrep-rules.yaml not created by python recipe"
+    
+    # Verify custom recipe guidelines appended to AETHEL.md
+    with open(os.path.join(scen_dir, "AETHEL.md"), "r", encoding="utf-8") as f:
+        aethel_content = f.read()
+    assert "Python Linting & Code Verification Rules" in aethel_content, "Recipe guidelines not appended to AETHEL.md"
+    
+    # 3. Test safety/non-destructive check: modify .ruff.toml and verify it is not overwritten
+    with open(os.path.join(scen_dir, ".ruff.toml"), "w", encoding="utf-8") as f:
+        f.write("# User custom config\n")
+        
+    run_cmd([sys.executable, "-m", "aethel.cli", "init", "--recipe", "python"], scen_dir)
+    
+    with open(os.path.join(scen_dir, ".ruff.toml"), "r", encoding="utf-8") as f:
+        ruff_content = f.read()
+    assert ruff_content == "# User custom config\n", "Existing configuration file was overwritten"
+    
     print(f"{GREEN}[PASS] Scenario A completed successfully.{RESET}")
 
 def test_scenario_b(temp_dir):
