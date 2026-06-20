@@ -1,12 +1,15 @@
 import argparse
 import datetime
 import os
-import re
 import shutil
 import sys
 from typing import Any
 
 from aethel.linter import run_linter  # noqa: F401  (kept for backward-compatible imports)
+from aethel.markers import (  # noqa: F401  (re-exported for backward-compatible imports)
+    extract_managed_block,
+    replace_managed_block,
+)
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
@@ -122,30 +125,6 @@ def merge_template_dir(src_name: str, dest_name: str, dest_dir: str) -> None:
         for fname in files:
             shutil.copy2(os.path.join(root, fname), os.path.join(target_root, fname))
     print(f"Merged template folder (non-destructive): {dest_name}")
-
-
-def _managed_block_pattern(block_id: str) -> re.Pattern[str]:
-    return re.compile(
-        r"<!--\s*AETHEL:MANAGED:BEGIN\s+id="
-        + re.escape(block_id)
-        + r"\s*-->.*?<!--\s*AETHEL:MANAGED:END\s+id="
-        + re.escape(block_id)
-        + r"\s*-->",
-        re.DOTALL,
-    )
-
-
-def extract_managed_block(text: str, block_id: str) -> str | None:
-    match = _managed_block_pattern(block_id).search(text)
-    return match.group(0) if match else None
-
-
-def replace_managed_block(content: str, new_block: str, block_id: str) -> tuple[str, bool]:
-    """Replace the managed block with block_id in content. Returns (text, replaced)."""
-    pattern = _managed_block_pattern(block_id)
-    if not pattern.search(content):
-        return content, False
-    return pattern.sub(lambda _m: new_block, content, count=1), True
 
 
 def write_linter_wrapper(dest_dir: str) -> None:

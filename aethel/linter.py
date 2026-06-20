@@ -8,6 +8,7 @@ import sys
 from typing import Any
 
 from aethel.config import AethelConfig, load_config
+from aethel.markers import extract_managed_block, normalize_block
 
 # ANSI Color Codes
 GREEN = "\033[92m"
@@ -415,6 +416,10 @@ def check_workspace_hygiene(
             print_error(f"Failed to read AETHEL.md for structural checks: {e}")
             has_errors = True
 
+    # 1.3 Verify the workspace core does not diverge from the installed Aethel core
+    if not check_core_consistency(workspace_path, cfg):
+        has_errors = True
+
     # 2. Verify gitattributes configuration
     gitattrib_path = os.path.join(workspace_path, ".gitattributes")
     if os.path.exists(gitattrib_path):
@@ -551,6 +556,71 @@ def check_spec_sync(workspace_path: str, cfg: AethelConfig | None = None) -> boo
         "AETHEL_SKIP_SYNC=1 for an intentionally spec-irrelevant commit."
     )
     if cfg.sync_enforce == "error":
+        print_error(msg)
+        return False
+    print_warning(msg)
+    return True
+
+
+def _installed_core_block() -> str | None:
+    """The `aethel-core` managed block shipped by the installed Aethel library."""
+    template_path = os.path.join(os.path.dirname(__file__), "templates", "AETHEL.md.template")
+    if not os.path.exists(template_path):
+        return None
+    try:
+        with open(template_path, "r", encoding="utf-8") as f:
+            return extract_managed_block(f.read(), "aethel-core")
+    except OSError:
+        return None
+
+
+def _is_aethel_source_repo(workspace_path: str) -> bool:
+    """True when the workspace IS the Aethel library source (it *defines* the
+    core, so it cannot meaningfully 'diverge' from itself)."""
+    return os.path.exists(os.path.join(workspace_path, "aethel", "templates", "AETHEL.md.template"))
+
+
+def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
+    """Core-consistency standard: a deployed workspace must not contradict the
+    Aethel core. Mechanically, its `aethel-core` managed block must match the
+    installed library's core block. The workspace may freely EXTEND the core
+    (custom rules below the block, recipes, aethel.toml) — that asymmetry is
+    allowed; the core is the invariant subset, not a copy of the workspace.
+
+    Returns True (non-blocking) unless the block diverges and enforce=='error'.
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    if cfg.consistency_enforce == "off" or _is_aethel_source_repo(workspace_path):
+        return True
+    aethel_path = os.path.join(workspace_path, "AETHEL.md")
+    lib_core = _installed_core_block()
+    if not os.path.exists(aethel_path) or lib_core is None:
+        return True  # missing AETHEL.md is a hygiene concern; missing template = can't compare
+
+    try:
+        with open(aethel_path, "r", encoding="utf-8") as f:
+            ws_core = extract_managed_block(f.read(), "aethel-core")
+    except OSError:
+        return True
+
+    if ws_core is not None and normalize_block(ws_core) == normalize_block(lib_core):
+        return True
+
+    print("--- Running Core Consistency Validation ---")
+    if ws_core is None:
+        msg = (
+            "AETHEL.md has no managed core block (aethel-core): the workspace has forked "
+            "from the Aethel core. Run `aethel update` to restore the managed block and keep "
+            "project-specific rules BELOW it."
+        )
+    else:
+        msg = (
+            "AETHEL.md managed core block diverges from the installed Aethel core. Do NOT edit "
+            "inside the managed block - the workspace may EXTEND the core (rules below the block, "
+            "recipes, aethel.toml) but must not contradict it. If the library was upgraded, run "
+            "`aethel update` to re-sync the core."
+        )
+    if cfg.consistency_enforce == "error":
         print_error(msg)
         return False
     print_warning(msg)

@@ -113,3 +113,12 @@ Every complex plan must be structured as follows:
 * **Lossless.** Preserve all existing comments/docstrings not related to the change.
 * **PowerShell only.** All terminal commands must use PowerShell syntax (Windows).
 * **venv**: Call `.\venv\Scripts\python.exe` directly for all Python executions.
+
+---
+
+## 7. Core Consistency Contract (CC-1)
+Deployed Aethel workspaces are governed by this repository's **core** (the `aethel-core` managed block and the library defaults). The relationship is directional and must be preserved:
+* **No principled disagreement.** Nothing in a workspace — custom rules, `aethel.toml`, recipes, or memory — may contradict or silently override a core rule. On conflict, **the core wins**.
+* **Extend, do not fork.** A workspace must NOT edit inside the `AETHEL:MANAGED id=aethel-core` block; project-specific rules live BELOW it, stack tooling in recipes, policy in `aethel.toml`. The block is owned by `aethel update`.
+* **Superset, not copy.** A workspace is a *superset* of the core (workspace ⊇ core). The core is the invariant subset and is intentionally NOT a copy of any workspace — project-specific detail does not belong in this repository's templates.
+* **Enforced mechanically.** The linter (`check_core_consistency`) compares a workspace's core block against the installed library's core; divergence is resolved with `aethel update`, not by hand-editing the block. This repository is the source of the core and is therefore exempt from the check.

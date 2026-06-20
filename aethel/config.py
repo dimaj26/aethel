@@ -71,6 +71,7 @@ class AethelConfig:
     sync_watched: list[str] = field(default_factory=lambda: list(DEFAULT_SYNC_WATCHED))
     sync_ignored: list[str] = field(default_factory=lambda: list(DEFAULT_SYNC_IGNORED))
     spec_files: list[str] = field(default_factory=lambda: list(DEFAULT_SPEC_FILES))
+    consistency_enforce: str = "warn"  # error | warn | off (workspace core vs library core)
 
 
 def _coerce_enforce(value: object, fallback: str) -> str:
@@ -131,5 +132,9 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
         cfg.sync_watched = _coerce_str_list(sync.get("watched"), cfg.sync_watched)
         cfg.sync_ignored = _coerce_str_list(sync.get("ignored"), cfg.sync_ignored)
         cfg.spec_files = _coerce_str_list(sync.get("spec_files"), cfg.spec_files)
+
+    consistency = data.get("consistency", {})
+    if isinstance(consistency, dict):
+        cfg.consistency_enforce = _coerce_enforce(consistency.get("enforce"), cfg.consistency_enforce)
 
     return cfg

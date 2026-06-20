@@ -5,6 +5,8 @@ from aethel.linter import (
     _classify_staged,
     _has_cycle,
     _heading_present,
+    _installed_core_block,
+    check_core_consistency,
     check_memory_integrity,
     check_plan_file,
     check_spec_sync,
@@ -122,6 +124,32 @@ def test_check_spec_sync_disabled_is_noop(tmp_path):
 def test_check_spec_sync_skip_env(tmp_path, monkeypatch):
     monkeypatch.setenv("AETHEL_SKIP_SYNC", "1")
     assert check_spec_sync(str(tmp_path), AethelConfig(sync_enforce="error")) is True
+
+
+def test_core_consistency_matches_and_allows_extension(tmp_path):
+    core = _installed_core_block()
+    assert core is not None
+    # Workspace core block identical to the library core, plus a custom rule below it.
+    (tmp_path / "AETHEL.md").write_text(
+        "# Project AETHEL\n\n" + core + "\n\n- [G-1]: project-specific rule\n",
+        encoding="utf-8",
+    )
+    assert check_core_consistency(str(tmp_path), AethelConfig(consistency_enforce="error")) is True
+
+
+def test_core_consistency_flags_in_block_edit(tmp_path):
+    core = _installed_core_block()
+    assert core is not None and "Decision Routing" in core
+    tampered = core.replace("Decision Routing", "Tampered Routing", 1)
+    (tmp_path / "AETHEL.md").write_text(tampered, encoding="utf-8")
+    assert check_core_consistency(str(tmp_path), AethelConfig(consistency_enforce="error")) is False
+    assert check_core_consistency(str(tmp_path), AethelConfig(consistency_enforce="warn")) is True
+    assert check_core_consistency(str(tmp_path), AethelConfig(consistency_enforce="off")) is True
+
+
+def test_core_consistency_flags_missing_block(tmp_path):
+    (tmp_path / "AETHEL.md").write_text("# Forked file with no managed markers\n", encoding="utf-8")
+    assert check_core_consistency(str(tmp_path), AethelConfig(consistency_enforce="error")) is False
 
 
 def test_plan_language_respects_config(tmp_path):

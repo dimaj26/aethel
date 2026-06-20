@@ -48,3 +48,11 @@ enforce = "warn"
 watched = ["*.py", "*.ts", "*.tsx", "*.js", "*.jsx", "*.go", "*.rs", "*.java", "*.sql"]
 ignored = ["*test*", "*spec*", "*.md", "memory.json", "*.lock", "*/node_modules/*"]
 spec_files = ["memory.json", "CONTEXT.md", "AETHEL.md"]
+
+[consistency]
+# Core-consistency standard: the workspace must not contradict the Aethel core.
+# The linter checks that AETHEL.md's managed `aethel-core` block matches the
+# installed library's core. The workspace may EXTEND the core (rules below the
+# block, recipes, this file) but must not fork it. On divergence, run `aethel update`.
+#   "warn" (default) | "error" (block) | "off" (disable)
+enforce = "warn"

@@ -448,6 +448,42 @@ def test_scenario_h(temp_dir):
 
     print(f"{GREEN}[PASS] Scenario H completed successfully.{RESET}")
 
+def test_scenario_i(temp_dir):
+    print_banner("Scenario I: Core consistency standard")
+    scen_dir = os.path.join(temp_dir, "scenario_i")
+    os.makedirs(scen_dir)
+
+    run_cmd(["git", "init"], scen_dir)
+    run_cmd([sys.executable, "-m", "aethel.cli", "init"], scen_dir)
+    os.remove(os.path.join(scen_dir, "AETHEL_ONBOARDING.md"))
+
+    aethel_file = os.path.join(scen_dir, "AETHEL.md")
+    with open(aethel_file, "r", encoding="utf-8") as f:
+        original = f.read()
+
+    # Baseline: a freshly-deployed workspace is consistent with the core.
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    # Editing INSIDE the managed core block is a principled disagreement.
+    tampered = original.replace("**Be concise.**", "**Be verbose and chatty.**")
+    assert tampered != original, "test setup: marker text not found in core block"
+    with open(aethel_file, "w", encoding="utf-8") as f:
+        f.write(tampered)
+    res = run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+    assert "diverges from the installed Aethel core" in res.stdout, "Core divergence not reported (warn)"
+
+    # Under enforce='error' the in-block edit must block.
+    with open(os.path.join(scen_dir, "aethel.toml"), "w", encoding="utf-8") as f:
+        f.write('[consistency]\nenforce = "error"\n')
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+
+    # Restore the core block and EXTEND below it (the allowed asymmetry): consistent again.
+    with open(aethel_file, "w", encoding="utf-8") as f:
+        f.write(original + "\n- [G-321]: project rule below the core block.\n")
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    print(f"{GREEN}[PASS] Scenario I completed successfully.{RESET}")
+
 def main():
     with tempfile.TemporaryDirectory() as temp_dir:
         print(f"Using temp directory: {temp_dir}")
@@ -459,6 +495,7 @@ def main():
         test_scenario_f(temp_dir)
         test_scenario_g(temp_dir)
         test_scenario_h(temp_dir)
+        test_scenario_i(temp_dir)
 
     print(f"\n{GREEN}ALL TEST SCENARIOS PASSED SUCCESSFULLY!{RESET}\n")
 
