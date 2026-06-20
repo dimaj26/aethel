@@ -82,11 +82,12 @@ Every complex plan must be structured as follows:
 ## 4. Git Commit & Workflow Protocol (GW-1)
 * Commits must use imperative mood (e.g., `feat: add memory sync command`, NOT `added memory sync command`).
 * Group commits by type prefix: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`.
-* **AI local commits**: The AI is allowed to automatically run GW-1 to stage and commit changes locally upon completing significant milestones/refactors:
-  1. `git status`
-  2. `git rm <deleted-files>` (if applicable)
-  3. `git add .`
-  4. `git commit -m "<prefix>: <message>"`
+* **Local milestone auto-commit (default ON)**: Upon completing a coherent milestone or refactor — NOT on every edit, and never mid-task while a Route B plan still awaits approval — commit locally without being asked, following these steps:
+  1. Run the workspace linter and ensure it is green BEFORE committing. Never commit a red tree.
+  2. Complete Route C in the SAME milestone: stage the matching spec updates (`memory.json` / `CONTEXT.md`) together with the code, so the `[sync]` drift guard passes naturally. Do not bypass it with `AETHEL_SKIP_SYNC` to force an auto-commit.
+  3. `git status` and review the diff for secrets, large files, or stray artifacts before staging. Stage intentionally; avoid blind `git add -A` when the tree is dirty with unrelated files.
+  4. `git rm <deleted-files>` (if applicable), then `git add <paths>`.
+  5. `git commit -m "<prefix>: <imperative message>"` — one logical change per commit; no `auto`/timestamp messages.
 * `git push` is strictly forbidden from automatic execution. It must only be run if the user explicitly requests it.
 
 ---
