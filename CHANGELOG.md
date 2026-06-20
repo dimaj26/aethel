@@ -14,10 +14,13 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
   nothing staged); escape hatch `AETHEL_SKIP_SYNC=1`; also runnable as `--stage sync`. Route C in
   `AETHEL.md` is reworded as a mandatory post-step that this check enforces. Polygon scenario H.
 - Core Consistency Contract (CC-1): a deployed workspace may EXTEND the Aethel core but must not
-  contradict it (workspace ⊇ core; the core is not a copy of the workspace). Documented as a
-  standard in `AETHEL.md` and enforced by `check_core_consistency`, which compares the workspace's
-  `aethel-core` managed block against the installed library's core (`[consistency] enforce`,
-  default `warn`; the source repo is exempt). Marker helpers moved to `aethel/markers.py`.
+  contradict it (workspace ⊇ core; the core is not a copy of the workspace). Enforced by
+  `check_core_consistency`, which compares the workspace's `aethel-core` managed block against the
+  installed library's core (`[consistency] enforce`, default `warn`; the source repo is exempt).
+  The deployed template carries only the operational guidance (don't edit the block; rules go
+  below it; on conflict the core wins; run `aethel update` on divergence) folded into the
+  managed-block note — it is not a maintainer essay. The full directional/maintainer framing of
+  CC-1 lives only in the root `AETHEL.md`. Marker helpers moved to `aethel/markers.py`.
   Polygon scenario I.
 - Pytest unit suite (`tests/test_config.py`, `tests/test_linter.py`, `tests/test_cli.py`) and a
   GitHub Actions CI workflow running ruff, mypy, pytest, the integration polygon, and a self-lint

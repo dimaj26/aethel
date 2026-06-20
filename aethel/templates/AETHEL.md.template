@@ -3,9 +3,12 @@
 
 Welcome, AI Developer. This file is the official human-written orchestrator and rulebook. It defines your behavioral boundaries, decision routing, planning blueprints, and development standards.
 
-> The block between the AETHEL:MANAGED markers is owned by `aethel update` and will be
-> overwritten on upgrade. Add project-specific rules BELOW the closing marker — that
-> content is preserved across updates.
+> **Core block.** Everything between the AETHEL:MANAGED markers is owned by `aethel update`,
+> is overwritten on upgrade, and is checked against the installed Aethel core by the linter.
+> Do NOT edit inside it. Add project-specific rules BELOW the closing marker — that content is
+> preserved across updates. Local rules may extend the core but must never contradict it: on
+> conflict, **the core wins**. If the linter reports divergence, run `aethel update` to re-sync
+> rather than hand-editing the block.
 
 ---
 
@@ -118,15 +121,6 @@ Every complex plan must be structured as follows:
 * **Lossless.** Preserve all existing comments/docstrings not related to the change.
 * **PowerShell only.** All terminal commands must use PowerShell syntax (Windows).
 * **venv**: Call the local environment's python/pip directly for all Python executions.
-
----
-
-## 7. Core Consistency Contract (CC-1)
-This workspace is governed by an upstream Aethel **core**. The relationship is directional and must be preserved:
-* **No principled disagreement.** Nothing in this workspace — custom rules, `aethel.toml`, recipes, or memory — may contradict or silently override a core rule. On conflict, **the core wins**.
-* **Extend, do not fork.** Do NOT edit inside the `AETHEL:MANAGED id=aethel-core` block. Put project-specific rules BELOW it, stack tooling in recipes, and policy in `aethel.toml`. The block is owned by `aethel update`.
-* **Superset, not copy.** The workspace is a *superset* of the core (workspace ⊇ core). The core is the invariant subset and is intentionally NOT a copy of the workspace — project-specific detail does not belong upstream.
-* **Enforced mechanically.** The linter compares this file's core block against the installed library's core; on divergence, run `aethel update` to re-sync rather than hand-editing the block.
 <!-- AETHEL:MANAGED:END id=aethel-core -->
 
 <!-- Add project-specific rules, overrides and custom prefixes BELOW this line. -->
