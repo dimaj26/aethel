@@ -122,6 +122,7 @@ Every complex plan must be structured as follows:
 * **PowerShell only.** All terminal commands must use PowerShell syntax (Windows).
 * **venv**: Call the local environment's python/pip directly for all Python executions.
 * **One thesis, one agent.** When delegating analysis to a sub-agent, spawn one agent per distinct question/thesis — never bundle multiple analyses into a single agent. Relay each result separately.
+* **Delegate only when it pays.** A sub-agent starts cold and re-derives context you already hold — the expensive path. Spawn one only when the analysis needs broad or independent context you do not already have (large fan-out search, heavy cross-file review). When the relevant context is already loaded and the question is simple, analyze inline. If asked to use an agent for something already in context and trivial, say inline is cheaper and confirm before spawning.
 <!-- AETHEL:MANAGED:END id=aethel-core -->
 
 <!-- Add project-specific rules, overrides and custom prefixes BELOW this line. -->

@@ -39,6 +39,10 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 - Polygon scenarios F (custom `aethel.toml` ontology) and G (non-destructive update).
 
 ### Changed
+- Added a "Delegate only when it pays" rule to Response Rules in the `aethel-core` block: a
+  sub-agent starts cold and re-derives context already held, so spawn one only for broad or
+  independent analysis (large fan-out, heavy cross-file review) and analyze inline when the
+  context is already loaded and the question is simple. Complements "one thesis, one agent".
 - Route B step 6 in the `aethel-core` block now states that `task.md` is authored up front
   as a complete ordered checklist derived from the plan's Proposed Changes (then executed in
   3–5 step chunks and edited as reality dictates), rather than created and filled lazily —
