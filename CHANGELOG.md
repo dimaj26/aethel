@@ -22,6 +22,10 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
   managed-block note — it is not a maintainer essay. The full directional/maintainer framing of
   CC-1 lives only in the root `AETHEL.md`. Marker helpers moved to `aethel/markers.py`.
   Polygon scenario I.
+- Orchestrator rules in `AETHEL.md`: GW-1 local milestone auto-commit is now the default behavior
+  (commit at coherent milestones only, lint green first, code + specs staged together, imperative
+  message, no auto-push); and a "one thesis, one agent" rule (delegate one sub-agent per distinct
+  question/analysis, never bundle). Both live in the managed `aethel-core` block.
 - Pytest unit suite (`tests/test_config.py`, `tests/test_linter.py`, `tests/test_cli.py`) and a
   GitHub Actions CI workflow running ruff, mypy, pytest, the integration polygon, and a self-lint
   (dogfooding) on Python 3.11/3.12.
