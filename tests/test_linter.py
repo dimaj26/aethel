@@ -10,8 +10,39 @@ from aethel.linter import (
     check_core_consistency,
     check_knowledge_index,
     check_plan_file,
+    check_report_file,
     check_spec_sync,
 )
+
+_VALID_REPORT = (
+    "# Walkthrough\n\n## Summary\nDid the thing.\n\n## Changes made\n- a\n\n"
+    "## What was tested\n- pytest\n\n## Validation results\n- green\n"
+)
+
+
+def test_report_file_missing_is_error(tmp_path):
+    errs, _ = check_report_file(str(tmp_path))
+    assert errs and "not found" in errs[0]
+
+
+def test_report_file_valid_passes(tmp_path):
+    (tmp_path / "walkthrough.md").write_text(_VALID_REPORT, encoding="utf-8")
+    errs, warns = check_report_file(str(tmp_path))
+    assert errs == [] and warns == []
+
+
+def test_report_file_missing_summary_section_errors(tmp_path):
+    # 'Summary' is now a required section.
+    body = _VALID_REPORT.replace("## Summary\nDid the thing.\n\n", "")
+    (tmp_path / "walkthrough.md").write_text(body, encoding="utf-8")
+    errs, _ = check_report_file(str(tmp_path))
+    assert any("Summary" in e for e in errs)
+
+
+def test_report_file_ru_language_warns(tmp_path):
+    (tmp_path / "walkthrough.md").write_text(_VALID_REPORT, encoding="utf-8")
+    _errs, warns = check_report_file(str(tmp_path), AethelConfig(report_lang="ru"))
+    assert any("Russian" in w for w in warns)  # English body flagged at warn
 
 
 def test_heading_present_is_lenient():
@@ -72,6 +103,18 @@ def test_changelog_drift():
     cfg2 = AethelConfig(rule_files=["docs/RULES.md"])
     assert _changelog_drift(["docs/RULES.md"], cfg2) is True
     assert _changelog_drift(["docs/RULES.md", "CHANGELOG.md"], cfg2) is False
+
+
+def test_walkthrough_sync_disabled_is_noop(tmp_path):
+    # 'off' short-circuits before any git inspection; tmp_path need not be a repo.
+    from aethel.linter import check_walkthrough_sync
+    assert check_walkthrough_sync(str(tmp_path), AethelConfig(require_walkthrough="off")) is True
+
+
+def test_walkthrough_sync_skip_env(tmp_path, monkeypatch):
+    from aethel.linter import check_walkthrough_sync
+    monkeypatch.setenv("AETHEL_SKIP_SYNC", "1")
+    assert check_walkthrough_sync(str(tmp_path), AethelConfig(require_walkthrough="error")) is True
 
 
 def test_check_changelog_sync_disabled_is_noop(tmp_path):

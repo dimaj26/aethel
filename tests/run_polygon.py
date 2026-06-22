@@ -519,6 +519,55 @@ def test_scenario_k(temp_dir):
 
     print(f"{GREEN}[PASS] Scenario K completed successfully.{RESET}")
 
+def test_scenario_l(temp_dir):
+    print_banner("Scenario L: Walkthrough-report drift guard (Route B + staged code)")
+    scen_dir = os.path.join(temp_dir, "scenario_l")
+    os.makedirs(scen_dir)
+
+    run_cmd(["git", "init"], scen_dir)
+    run_cmd(["git", "config", "user.email", "polygon@aethel.test"], scen_dir)
+    run_cmd(["git", "config", "user.name", "Polygon"], scen_dir)
+    run_cmd([sys.executable, "-m", "aethel.cli", "init"], scen_dir)
+    os.remove(os.path.join(scen_dir, "AETHEL_ONBOARDING.md"))
+
+    # Establish HEAD: the guard is inert before the first commit.
+    run_cmd(["git", "add", "-A"], scen_dir)
+    run_cmd(["git", "commit", "--no-verify", "-m", "chore: scaffold"], scen_dir)
+
+    valid_report = (
+        "# Walkthrough\n\n## Summary\nDid the thing.\n\n## Changes made\n- module.py\n\n"
+        "## What was tested\n- aethel lint\n\n## Validation results\n- green\n"
+    )
+
+    # A Route B task is active (task.md present) and a code file is staged.
+    with open(os.path.join(scen_dir, "task.md"), "w", encoding="utf-8") as f:
+        f.write("- [x] done\n- [x] run prompt-linter\n")
+    with open(os.path.join(scen_dir, "module.py"), "w", encoding="utf-8") as f:
+        f.write("def f():\n    return 1\n")
+    run_cmd(["git", "add", "module.py"], scen_dir)
+
+    # 1. No walkthrough.md -> guard blocks at default 'error'.
+    res = run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+    assert "Walkthrough drift" in res.stdout, "Walkthrough drift not reported"
+
+    # 2. A valid walkthrough.md -> passes.
+    report_path = os.path.join(scen_dir, "walkthrough.md")
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(valid_report)
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    # 3. Escape hatch: remove the report, AETHEL_SKIP_SYNC=1 bypasses.
+    os.remove(report_path)
+    skip_env = dict(ENV)
+    skip_env["AETHEL_SKIP_SYNC"] = "1"
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0, env=skip_env)
+
+    # 4. Not a Route B task: remove task.md -> passes even with code staged, no report.
+    os.remove(os.path.join(scen_dir, "task.md"))
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    print(f"{GREEN}[PASS] Scenario L completed successfully.{RESET}")
+
 def main():
     with tempfile.TemporaryDirectory() as temp_dir:
         print(f"Using temp directory: {temp_dir}")
@@ -533,6 +582,7 @@ def main():
         test_scenario_i(temp_dir)
         test_scenario_j(temp_dir)
         test_scenario_k(temp_dir)
+        test_scenario_l(temp_dir)
 
     print(f"\n{GREEN}ALL TEST SCENARIOS PASSED SUCCESSFULLY!{RESET}\n")
 

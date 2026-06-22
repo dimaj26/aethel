@@ -22,3 +22,6 @@ GEMINI.md.bak
 *.bak
 TEST_TenirTooClub_Bot/
 
+# Per-session walkthrough report (local artifact, not committed)
+walkthrough.md
+

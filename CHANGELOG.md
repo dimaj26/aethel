@@ -3,6 +3,20 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased] - 2026-06-22
+### Added
+- **Mandatory walkthrough report (`walkthrough.md`) + commit-time guard.** A Route B task now
+  must produce a session report with a defined structure (`Summary` / `Changes made` /
+  `What was tested` / `Validation results`). New `check_walkthrough_sync` is a sibling of the
+  spec-sync / changelog-sync guards: inert outside a real commit, it fires only when a Route B
+  task is active (`task.md` present) AND the commit stages code, then requires a well-formed
+  `walkthrough.md` at `[report] require_walkthrough` (default `error`); same `AETHEL_SKIP_SYNC=1`
+  escape hatch. Added `[report]` config (`require_walkthrough`, `sections`); `check_report_file`
+  now drives required sections from config (incl. `Summary`) and runs in the default lint +
+  `--stage sync`. The rule is in the managed core block (Route B step 8 + a structure note);
+  `walkthrough.md` is a per-session local artifact (gitignored). This repo sets
+  `report_lang = "ru"` (warn) in its own `aethel.toml` as a dev-env preference (not core).
+  Polygon scenario L.
+
 ### Changed
 - **Specification architecture migrated from the Memory MCP graph to a provider-agnostic
   Markdown layer.** Retired `memory.json`, the Memory MCP server wiring, the ontology

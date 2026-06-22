@@ -1,0 +1,13 @@
+# Aethel workspace configuration (this repo's dev-environment policy).
+#
+# Only project-local preferences live here — never core rules. `aethel update`
+# never overwrites this file. Everything not set below uses the built-in defaults
+# (including [report] require_walkthrough = "error" from the core library).
+
+[language]
+# Session/task reports (walkthrough.md) in THIS repo must be written in Russian.
+# Coarse, terminology-friendly check: a report with no Cyrillic is flagged (warn);
+# English technical terms inside an otherwise-Russian report are fine.
+#   "ru" -> must be Russian (absence of Cyrillic flagged)
+report_lang = "ru"     # walkthrough.md (warn-level)
+artifact_lang = "any"  # implementation_plan.md / task.md (no check)

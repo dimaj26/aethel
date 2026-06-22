@@ -28,6 +28,15 @@ required AETHEL/CONTEXT headers, no `LEGACY_*` or `AETHEL_ONBOARDING.md` left be
 core-consistency (see [core consistency](core-consistency.md)).
 
 ## Commit-time drift guards
+All three are inert outside a real commit (no repo / no HEAD / nothing staged) and share the
+`AETHEL_SKIP_SYNC=1` escape hatch; each checks only the *pairing*, never the content.
 - `check_spec_sync` — code staged without a spec file (`CONTEXT.md` / `AETHEL.md` /
-  `knowledge/*`) warns or blocks (Route C). Inert outside a real commit; `AETHEL_SKIP_SYNC=1` escapes.
+  `knowledge/*`) warns or blocks (Route C).
 - `check_changelog_sync` — a staged rule file (`AETHEL.md`) without `CHANGELOG.md` warns/blocks.
+- `check_walkthrough_sync` — when a Route B task is active (`task.md` present) AND the commit
+  stages code, the session report `walkthrough.md` must exist and carry the required sections
+  (`Summary` / `Changes made` / `What was tested` / `Validation results`, from
+  `[report] sections`); missing/malformed → `[report] require_walkthrough` (default `error`).
+  `walkthrough.md` is a per-session local artifact (gitignored). Report language is governed by
+  `[language] report_lang` (warn-level); structure validation lives in `check_report_file`
+  (also reachable via `--stage report`).

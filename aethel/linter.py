@@ -149,8 +149,7 @@ def check_report_file(workspace_path: str, cfg: AethelConfig | None = None) -> t
     with open(walkthrough_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    required_sections = ["Changes made", "What was tested", "Validation results"]
-    for sec in required_sections:
+    for sec in cfg.report_sections:
         pattern = re.compile(r"(?:^##?\s+|^\s*\*\*\s*)" + re.escape(sec), re.MULTILINE | re.IGNORECASE)
         if not pattern.search(content):
             errors.append(f"Missing required section or heading: '{sec}'.")
@@ -566,6 +565,50 @@ def check_changelog_sync(workspace_path: str, cfg: AethelConfig | None = None) -
     return True
 
 
+def check_walkthrough_sync(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
+    """Pre-commit guard: require walkthrough.md when a Route B task commits code.
+
+    A sibling of `check_spec_sync` / `check_changelog_sync`. A Route B task is
+    signalled by a `task.md` in the workspace; when such a task stages CODE for a
+    commit, a session report (`walkthrough.md`) must exist and be well-formed.
+    Like the other guards it is inert outside a real commit (no repo / no HEAD /
+    nothing staged), honors `AETHEL_SKIP_SYNC`, and checks only at the configured
+    severity. Returns True (non-blocking) unless drift is found and
+    require_walkthrough == 'error'.
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    if cfg.require_walkthrough == "off":
+        return True
+    if os.environ.get("AETHEL_SKIP_SYNC"):
+        return True
+    if not _in_git_repo(workspace_path) or not _has_head(workspace_path):
+        return True
+    staged = _staged_files(workspace_path)
+    if not staged:
+        return True
+    code_changed, _spec_changed = _classify_staged(staged, cfg)
+    if not code_changed:
+        return True
+    # Route B signal: an execution checklist (task.md) is present.
+    if not os.path.exists(os.path.join(workspace_path, "task.md")):
+        return True
+
+    print("--- Running Walkthrough-Report Drift Validation ---")
+    errors, warnings = check_report_file(workspace_path, cfg)
+    for w in warnings:
+        print_warning(w)
+    if not errors:
+        return True
+    msg = (
+        "Walkthrough drift: a Route B task (task.md present) is committing code but "
+        "walkthrough.md is missing or malformed: " + "; ".join(errors) + " "
+        "Author the session report (Summary / Changes made / What was tested / "
+        "Validation results), or set AETHEL_SKIP_SYNC=1 for an intentionally "
+        "report-irrelevant commit."
+    )
+    return not _emit(cfg.require_walkthrough, msg)
+
+
 def _installed_core_block() -> str | None:
     """The `aethel-core` managed block shipped by the installed Aethel library."""
     template_path = os.path.join(os.path.dirname(__file__), "templates", "AETHEL.md.template")
@@ -668,7 +711,8 @@ def main() -> None:
     elif args.stage == "sync":
         spec_ok = check_spec_sync(workspace, cfg)
         changelog_ok = check_changelog_sync(workspace, cfg)
-        sys.exit(0 if (spec_ok and changelog_ok) else 1)
+        walkthrough_ok = check_walkthrough_sync(workspace, cfg)
+        sys.exit(0 if (spec_ok and changelog_ok and walkthrough_ok) else 1)
     else:
         # Parameterless run / General checks (Pre-commit hook default)
         plan_ok = check_plan_stage(workspace, cfg)
@@ -679,8 +723,9 @@ def main() -> None:
         print()
         sync_ok = check_spec_sync(workspace, cfg)
         changelog_ok = check_changelog_sync(workspace, cfg)
+        walkthrough_ok = check_walkthrough_sync(workspace, cfg)
 
-        if plan_ok and knowledge_ok and hygiene_ok and sync_ok and changelog_ok:
+        if plan_ok and knowledge_ok and hygiene_ok and sync_ok and changelog_ok and walkthrough_ok:
             print_success("All linter checks PASSED.")
             sys.exit(0)
         else:

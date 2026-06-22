@@ -27,6 +27,10 @@ DEFAULT_AETHEL_HEADERS = [
 
 DEFAULT_PLACEHOLDER_MARKERS = ["[Insert", "[e.g.", "[your_", "[note_path]", "[vault_name]"]
 
+# Walkthrough report (walkthrough.md) — the optimal section structure a session/task
+# report must contain. Checked by check_report_file and the commit-time walkthrough guard.
+DEFAULT_REPORT_SECTIONS = ["Summary", "Changes made", "What was tested", "Validation results"]
+
 # Spec-sync drift detection. At commit time the linter compares the staged file
 # set: if code files are staged but no spec file is, it nudges (warn) or blocks
 # (error). Globs are matched with fnmatch against the full POSIX path, where `*`
@@ -82,6 +86,8 @@ class AethelConfig:
     knowledge_dir: str = DEFAULT_KNOWLEDGE_DIR  # directory of atomic topic files
     dead_link_enforce: str = "error"  # error | warn | off (index link resolves on disk)
     orphan_enforce: str = "warn"  # error | warn | off (topic file unreachable from index)
+    require_walkthrough: str = "error"  # error | warn | off (commit-time Route-B report guard)
+    report_sections: list[str] = field(default_factory=lambda: list(DEFAULT_REPORT_SECTIONS))
 
 
 def _coerce_enforce(value: object, fallback: str) -> str:
@@ -154,5 +160,10 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
             cfg.knowledge_dir = kdir
         cfg.dead_link_enforce = _coerce_enforce(knowledge.get("dead_link_enforce"), cfg.dead_link_enforce)
         cfg.orphan_enforce = _coerce_enforce(knowledge.get("orphan_enforce"), cfg.orphan_enforce)
+
+    report = data.get("report", {})
+    if isinstance(report, dict):
+        cfg.require_walkthrough = _coerce_enforce(report.get("require_walkthrough"), cfg.require_walkthrough)
+        cfg.report_sections = _coerce_str_list(report.get("sections"), cfg.report_sections)
 
     return cfg

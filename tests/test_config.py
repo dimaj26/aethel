@@ -49,6 +49,31 @@ def test_invalid_knowledge_enforce_falls_back(tmp_path):
     assert cfg.dead_link_enforce == "error"  # invalid -> default
 
 
+def test_report_defaults(tmp_path):
+    cfg = load_config(str(tmp_path))
+    assert cfg.require_walkthrough == "error"
+    assert cfg.report_sections == ["Summary", "Changes made", "What was tested", "Validation results"]
+
+
+def test_report_overrides(tmp_path):
+    (tmp_path / "aethel.toml").write_text(
+        '[report]\n'
+        'require_walkthrough = "warn"\n'
+        'sections = ["Итог", "Что тестировалось"]\n',
+        encoding="utf-8",
+    )
+    cfg = load_config(str(tmp_path))
+    assert cfg.require_walkthrough == "warn"
+    assert cfg.report_sections == ["Итог", "Что тестировалось"]
+
+
+def test_invalid_require_walkthrough_falls_back(tmp_path):
+    (tmp_path / "aethel.toml").write_text(
+        '[report]\nrequire_walkthrough = "nonsense"\n', encoding="utf-8",
+    )
+    assert load_config(str(tmp_path)).require_walkthrough == "error"  # invalid -> default
+
+
 def test_structure_and_language_overrides(tmp_path):
     (tmp_path / "aethel.toml").write_text(
         '[structure]\n'

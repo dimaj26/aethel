@@ -25,6 +25,17 @@ dead_link_enforce = "error" # "error" (default) | "warn" | "off"
 # A knowledge/*.md topic file not reachable from the index (an orphan):
 orphan_enforce = "warn"     # "warn" (default) | "error" | "off"
 
+[report]
+# Walkthrough report (walkthrough.md) — the session/task report for Route B work.
+# A commit-time guard (sibling of [sync]) requires it ONLY when a Route B task is
+# active (task.md present) AND the commit stages code. Inert otherwise; same
+# AETHEL_SKIP_SYNC=1 escape hatch. walkthrough.md is a per-session local artifact
+# (gitignore it), not committed.
+require_walkthrough = "error"   # "error" (default, block) | "warn" | "off"
+# Required section headings the report must contain (the optimal structure):
+sections = ["Summary", "Changes made", "What was tested", "Validation results"]
+# Tip: set report language under [language] report_lang = "en" | "ru" | "any".
+
 [language]
 # Optional language policy for generated artifacts. Defaults to "any" (no check) so
 # the library ships no language opinion; set a value to enforce one in this project.
