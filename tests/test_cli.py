@@ -1,11 +1,26 @@
+import argparse
+
 import pytest
 
 from aethel.cli import (
     RecipeError,
+    cmd_init,
     discover_recipes,
     extract_managed_block,
     replace_managed_block,
 )
+
+
+def test_init_scaffolds_markdown_layer(tmp_path):
+    """init ships the Markdown knowledge layer + AGENTS.md, never memory.json."""
+    cmd_init(argparse.Namespace(path=str(tmp_path), force=False, recipe=None))
+    assert (tmp_path / "AGENTS.md").exists()
+    assert (tmp_path / "CONTEXT.md").exists()
+    assert (tmp_path / "knowledge" / "README.md").exists()
+    assert (tmp_path / "knowledge" / "decisions" / "0001-record-architecture-decisions.md").exists()
+    assert not (tmp_path / "memory.json").exists()
+    ga = (tmp_path / ".gitattributes").read_text(encoding="utf-8")
+    assert "text=auto" in ga and "memory.json" not in ga
 
 
 def _make_recipe(recipes_dir, name, sentinel_id, config_names, *, with_marker=True):

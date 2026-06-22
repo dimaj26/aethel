@@ -2,8 +2,37 @@
 
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
-## [Unreleased] - 2026-06-20
-### Added
+## [Unreleased] - 2026-06-22
+### Changed
+- **Specification architecture migrated from the Memory MCP graph to a provider-agnostic
+  Markdown layer.** Retired `memory.json`, the Memory MCP server wiring, the ontology
+  (`[ontology]` entity/relation types), and `check_memory_integrity`. Structured knowledge is
+  now a curated `llms.txt`-style index (`CONTEXT.md`: H1 + summary + annotated inline links)
+  pointing at a `knowledge/` tree of atomic topic files, with decisions as append-only ADRs
+  under `knowledge/decisions/`. A new universal `AGENTS.md` entry point is shipped (with
+  `CLAUDE.md`/`GEMINI.md` as thin stubs that name it); all redirect to `AETHEL.md`.
+- **Linter:** `check_memory_integrity` (+ `_has_cycle`) replaced by `check_knowledge_index` —
+  the index must exist and be non-placeholder, every relative inline link must resolve on disk
+  (dead link = error), and every `knowledge/*.md` topic file must be reachable from the index
+  (orphan = warn). Anchors stripped, `\`→`/` normalized, `http(s)`/`mailto` skipped; inline
+  links only. Severities configurable via `[knowledge] dead_link_enforce`/`orphan_enforce`.
+  Workspace hygiene drops the `memory.json binary` `.gitattributes` rule and checks the
+  knowledge dir; spec-sync `spec_files` default is now `CONTEXT.md`/`AETHEL.md`/`knowledge/*`.
+- **CLI:** `init` scaffolds `AGENTS.md`, the index, and a `knowledge/` seed (no `memory.json`);
+  `update` ships `AGENTS.md`; `ensure_gitattributes` writes `* text=auto`.
+- **Route C / Taboos** reworded to the knowledge index: Route C now updates `CONTEXT.md` +
+  `knowledge/*.md` (+ ADRs); Taboos #1 (no manual `memory.json` edits) and #7 (binary masking)
+  removed, #2 repointed to the index, renumbered; added an AETHEL.md "Specification
+  Architecture" section. The repo migrated ITSELF (dogfood): `memory.json` removed,
+  `knowledge/` + `CONTEXT.md` index added, `.gitattributes` → `* text=auto`.
+- **Templates/onboarding/skill:** removed `memory.json.template`; rewrote the onboarding guide
+  and the proposal-analysis skill to reference the knowledge index instead of the MCP graph.
+- **Tests:** removed memory-integrity/cycle/ontology tests; added knowledge-index unit tests,
+  `[knowledge]` config tests, and an init-scaffolding test. Polygon: dropped the graph from
+  Scenario C, repurposed Scenario D as a 150-topic index scale test, made Scenario F
+  structure-only, and added **Scenario K** (dead link = error, orphan = warn, promote-to-error).
+
+### Added (earlier this cycle)
 - Configurable workspace policy via optional `aethel.toml` (`[ontology]`, `[structure]`,
   `[language]`, `[sync]`): entity/relation types, required-header keywords with
   `enforce = error|warn|off`, per-artifact language policy, and spec-sync drift rules.
@@ -38,7 +67,7 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
   (dogfooding) on Python 3.11/3.12.
 - Polygon scenarios F (custom `aethel.toml` ontology) and G (non-destructive update).
 
-### Changed
+### Changed (earlier this cycle)
 - Added a "Delegate only when it pays" rule to Response Rules in the `aethel-core` block: a
   sub-agent starts cold and re-derives context already held, so spawn one only for broad or
   independent analysis (large fan-out, heavy cross-file review) and analyze inline when the
@@ -72,7 +101,7 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
   relation types `configures`, `extends`, `implements`).
 - Cycle detection rewritten as iterative DFS (no recursion limit on large graphs).
 
-### Fixed
+### Fixed (earlier this cycle)
 - `.gitattributes` append path now writes `memory.json binary` (implies `-diff`) instead of
   `merge=binary`, which did not suppress diffs.
 - Declared `requires-python = ">=3.11"` (was a false `>=3.8`); consolidated packaging into

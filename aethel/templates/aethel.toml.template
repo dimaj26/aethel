@@ -4,27 +4,26 @@
 # the values below to match your project's stack and conventions. `aethel update`
 # never overwrites this file.
 
-[ontology]
-# Allowed entityType values in memory.json. An entity with any other type fails
-# the linter. Extend this list for your stack (e.g. "Queue", "Cache").
-entity_types = [
-    "Framework", "Tool", "Layer", "Component", "DataModel", "ExternalService",
-    "Route", "Script", "Config", "Job", "Migration", "Library",
-]
-# Allowed relationType values between entities.
-relation_types = [
-    "uses", "defines", "calls", "renders", "tests", "stores", "part_of",
-    "depends_on", "configures", "extends", "implements",
-]
-
 [structure]
 # How to treat missing required headings in AETHEL.md / CONTEXT.md:
 #   "error" -> fail the linter, "warn" -> warning only, "off" -> skip the check.
 enforce = "error"
 # A section is considered present if any heading line contains the keyword
-# (case-insensitive). Section numbers and exact titles are NOT enforced.
-context_headers = ["Directory Structure", "Database Schema", "Coding Taboos", "Navigation Map"]
+# (case-insensitive). Section numbers and exact titles are NOT enforced. CONTEXT.md
+# is an llms.txt-style index with project-specific section names, so no required
+# CONTEXT headers ship by default (its integrity is checked under [knowledge]).
+context_headers = []
 aethel_headers = ["Decision Routing", "RNA-Blueprint", "Debugging", "Git Commit", "Coding Taboos", "Response Rules"]
+
+[knowledge]
+# Markdown knowledge layer: an llms.txt-style index of inline links into a tree of
+# atomic topic files. The linter checks index integrity, NOT a fixed set of topics.
+index_file = "CONTEXT.md"   # the curated index
+dir = "knowledge"           # directory of topic files (and decisions/ ADRs)
+# A relative inline link in the index that does not resolve on disk:
+dead_link_enforce = "error" # "error" (default) | "warn" | "off"
+# A knowledge/*.md topic file not reachable from the index (an orphan):
+orphan_enforce = "warn"     # "warn" (default) | "error" | "off"
 
 [language]
 # Optional language policy for generated artifacts. Defaults to "any" (no check) so
@@ -49,8 +48,8 @@ enforce = "warn"
 # A commit "touches code" if a staged path matches `watched` and not `ignored`.
 # Globs use fnmatch over the POSIX path; `*` spans directory separators.
 watched = ["*.py", "*.ts", "*.tsx", "*.js", "*.jsx", "*.go", "*.rs", "*.java", "*.sql"]
-ignored = ["*test*", "*spec*", "*.md", "memory.json", "*.lock", "*/node_modules/*"]
-spec_files = ["memory.json", "CONTEXT.md", "AETHEL.md"]
+ignored = ["*test*", "*spec*", "*.md", "*.lock", "*/node_modules/*"]
+spec_files = ["CONTEXT.md", "AETHEL.md", "knowledge/*"]
 # Rule-change ⇒ changelog pairing. When a `rule_files` path is staged, the linter
 # expects `changelog_file` to be staged too, so the release log never lags behind a
 # governance edit. Same enforce levels and AETHEL_SKIP_SYNC escape hatch as above.

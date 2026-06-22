@@ -41,11 +41,15 @@ def test_scenario_a(temp_dir):
     # Run aethel init
     run_cmd([sys.executable, "-m", "aethel.cli", "init"], scen_dir)
 
-    # Verify core files
-    core_files = ["AETHEL.md", "CONTEXT.md", "memory.json", ".gitattributes", "CLAUDE.md", "GEMINI.md", "prompt_linter.py"]
+    # Verify core files (memory.json retired; AGENTS.md is the universal entry point)
+    core_files = ["AETHEL.md", "AGENTS.md", "CONTEXT.md", ".gitattributes", "CLAUDE.md", "GEMINI.md", "prompt_linter.py"]
     for f in core_files:
         path = os.path.join(scen_dir, f)
         assert os.path.exists(path), f"File {f} not created"
+    assert not os.path.exists(os.path.join(scen_dir, "memory.json")), "memory.json must no longer be scaffolded"
+    assert os.path.isdir(os.path.join(scen_dir, "knowledge")), "knowledge/ topic tree not scaffolded"
+    with open(os.path.join(scen_dir, ".gitattributes"), "r", encoding="utf-8") as f:
+        assert "text=auto" in f.read(), ".gitattributes should declare '* text=auto'"
 
     # Verify git pre-commit hook
     hook_path = os.path.join(scen_dir, ".git", "hooks", "pre-commit")
@@ -169,66 +173,8 @@ pytest
         f.write("- [x] completed task\n- [x] run prompt-linter\n")
     run_cmd([sys.executable, "prompt_linter.py", "--stage", "checklist"], scen_dir, expected_code=0)
 
-    # 3. Test Graph validation (cycles)
-    memory_path = os.path.join(scen_dir, "memory.json")
-    # Create dependency cycle
-    with open(memory_path, "w", encoding="utf-8") as f:
-        f.write('{"type":"entity","name":"A","entityType":"Component","observations":[]}\n')
-        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
-        f.write('{"type":"relation","from":"A","to":"B","relationType":"depends_on"}\n')
-        f.write('{"type":"relation","from":"B","to":"A","relationType":"depends_on"}\n')
-
-    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
-
-    # Fix cycle
-    with open(memory_path, "w", encoding="utf-8") as f:
-        f.write('{"type":"entity","name":"A","entityType":"Component","observations":[]}\n')
-        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
-        f.write('{"type":"relation","from":"A","to":"B","relationType":"depends_on"}\n')
-
-    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
-
-    # 4. Test invalid entityType in memory.json
-    with open(memory_path, "w", encoding="utf-8") as f:
-        f.write('{"type":"entity","name":"A","entityType":"invalid_type","observations":[]}\n')
-        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
-        f.write('{"type":"relation","from":"A","to":"B","relationType":"depends_on"}\n')
-    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
-
-    # 5. Test invalid relationType in memory.json
-    with open(memory_path, "w", encoding="utf-8") as f:
-        f.write('{"type":"entity","name":"A","entityType":"Component","observations":[]}\n')
-        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
-        f.write('{"type":"relation","from":"A","to":"B","relationType":"invalid_rel"}\n')
-    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
-
-    # 6. Test placeholder warning in memory.json
-    with open(memory_path, "w", encoding="utf-8") as f:
-        f.write('{"type":"entity","name":"A","entityType":"Component","observations":["Some observation [Insert details here]"]}\n')
-        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
-        f.write('{"type":"relation","from":"A","to":"B","relationType":"depends_on"}\n')
-    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
-
-    # Restore valid memory.json
-    with open(memory_path, "w", encoding="utf-8") as f:
-        f.write('{"type":"entity","name":"A","entityType":"Component","observations":[]}\n')
-        f.write('{"type":"entity","name":"B","entityType":"Component","observations":[]}\n')
-        f.write('{"type":"relation","from":"A","to":"B","relationType":"depends_on"}\n')
-
-    # 7. Test missing required header in CONTEXT.md
-    ctx_file = os.path.join(scen_dir, "CONTEXT.md")
-    with open(ctx_file, "r", encoding="utf-8") as f:
-        original_ctx = f.read()
-
-    with open(ctx_file, "w", encoding="utf-8") as f:
-        f.write(original_ctx.replace("## 1. Project Directory Structure", "## 1. Deleted Header"))
-    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
-
-    with open(ctx_file, "w", encoding="utf-8") as f:
-        f.write(original_ctx)
-    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
-
-    # 8. Test missing required header in AETHEL.md
+    # 3. Test missing required header in AETHEL.md (knowledge-index integrity is
+    # covered by Scenario K; the memory.json graph checks are retired).
     aethel_file = os.path.join(scen_dir, "AETHEL.md")
     with open(aethel_file, "r", encoding="utf-8") as f:
         original_aethel = f.read()
@@ -252,22 +198,29 @@ def test_scenario_d(temp_dir):
     run_cmd([sys.executable, "-m", "aethel.cli", "init"], scen_dir)
     os.remove(os.path.join(scen_dir, "AETHEL_ONBOARDING.md"))
 
-    # Generate 100+ entities and relations in memory.json
-    memory_path = os.path.join(scen_dir, "memory.json")
-    with open(memory_path, "w", encoding="utf-8") as f:
-        # Entities
-        for i in range(150):
-            f.write(f'{{"type":"entity","name":"Node_{i}","entityType":"Component","observations":[]}}\n')
-        # Relations (linear chain to avoid cycles)
-        for i in range(149):
-            f.write(f'{{"type":"relation","from":"Node_{i}","to":"Node_{i+1}","relationType":"depends_on"}}\n')
+    # Generate 150 knowledge topic files and link every one from the index, so the
+    # knowledge-index check resolves 150 links and finds zero orphans. (Reset the
+    # scaffolded seed first so the topic count is exactly 150.)
+    knowledge_dir = os.path.join(scen_dir, "knowledge")
+    if os.path.isdir(knowledge_dir):
+        import shutil as _shutil
+        _shutil.rmtree(knowledge_dir)
+    os.makedirs(knowledge_dir, exist_ok=True)
+    links = []
+    for i in range(150):
+        topic = f"topic_{i}.md"
+        with open(os.path.join(knowledge_dir, topic), "w", encoding="utf-8") as f:
+            f.write(f"---\nname: topic-{i}\ndescription: scale topic {i}.\n---\n\n# Topic {i}\n")
+        links.append(f"- [Topic {i}](knowledge/{topic}) — scale topic {i}.")
+    with open(os.path.join(scen_dir, "CONTEXT.md"), "w", encoding="utf-8") as f:
+        f.write("# Index\n\n> scale index\n\n## Topics\n" + "\n".join(links) + "\n")
 
     # Measure runtime of linter
     start_time = time.time()
     run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
     duration = time.time() - start_time
-    print(f"Linter duration for 150 nodes and 149 links: {duration:.3f} seconds.")
-    assert duration < 1.0, "Linter is too slow on large graphs"
+    print(f"Linter duration for a 150-topic knowledge index: {duration:.3f} seconds.")
+    assert duration < 1.0, "Linter is too slow on a large knowledge index"
 
     print(f"{GREEN}[PASS] Scenario D completed successfully.{RESET}")
 
@@ -329,7 +282,7 @@ def test_scenario_e(temp_dir):
     print(f"{GREEN}[PASS] Scenario E completed successfully.{RESET}")
 
 def test_scenario_f(temp_dir):
-    print_banner("Scenario F: Custom aethel.toml ontology & structure policy")
+    print_banner("Scenario F: Custom aethel.toml structure policy (enforce=off)")
     scen_dir = os.path.join(temp_dir, "scenario_f")
     os.makedirs(scen_dir)
 
@@ -337,35 +290,17 @@ def test_scenario_f(temp_dir):
     run_cmd([sys.executable, "-m", "aethel.cli", "init"], scen_dir)
     os.remove(os.path.join(scen_dir, "AETHEL_ONBOARDING.md"))
 
-    # Use a project-specific type that is NOT in the default ontology.
-    memory_path = os.path.join(scen_dir, "memory.json")
-    with open(memory_path, "w", encoding="utf-8") as f:
-        f.write('{"type":"entity","name":"Widget","entityType":"Widget","observations":[]}\n')
-        f.write('{"type":"entity","name":"Store","entityType":"Widget","observations":[]}\n')
-        f.write('{"type":"relation","from":"Widget","to":"Store","relationType":"binds"}\n')
-
-    # Without config, "Widget"/"binds" are invalid -> lint fails.
-    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
-
-    # Provide a custom config that allows the project's ontology and disables
-    # the structural header checks.
-    with open(os.path.join(scen_dir, "aethel.toml"), "w", encoding="utf-8") as f:
-        f.write(
-            '[ontology]\n'
-            'entity_types = ["Widget"]\n'
-            'relation_types = ["binds"]\n\n'
-            '[structure]\n'
-            'enforce = "off"\n'
-        )
-
-    # Break a required header to prove enforce="off" is honored.
+    # Break a required AETHEL.md header -> structure check fails by default.
     aethel_file = os.path.join(scen_dir, "AETHEL.md")
     with open(aethel_file, "r", encoding="utf-8") as f:
         original_aethel = f.read()
     with open(aethel_file, "w", encoding="utf-8") as f:
         f.write(original_aethel.replace("## 6. Response Rules", "## 6. Removed"))
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
 
-    # Now lint passes: custom ontology accepted, structure check disabled.
+    # Disable the structural header check via config -> lint passes again.
+    with open(os.path.join(scen_dir, "aethel.toml"), "w", encoding="utf-8") as f:
+        f.write('[structure]\nenforce = "off"\n')
     run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
 
     print(f"{GREEN}[PASS] Scenario F completed successfully.{RESET}")
@@ -545,6 +480,45 @@ def test_scenario_j(temp_dir):
 
     print(f"{GREEN}[PASS] Scenario J completed successfully.{RESET}")
 
+def test_scenario_k(temp_dir):
+    print_banner("Scenario K: Knowledge index drift (dead link = error, orphan = warn)")
+    scen_dir = os.path.join(temp_dir, "scenario_k")
+    os.makedirs(scen_dir)
+
+    run_cmd(["git", "init"], scen_dir)
+    run_cmd([sys.executable, "-m", "aethel.cli", "init"], scen_dir)
+    os.remove(os.path.join(scen_dir, "AETHEL_ONBOARDING.md"))
+
+    # Baseline: the scaffolded index + knowledge seed lints clean.
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    ctx_file = os.path.join(scen_dir, "CONTEXT.md")
+    with open(ctx_file, "r", encoding="utf-8") as f:
+        original_ctx = f.read()
+
+    # 1. A dead inline link in the index is an error (default dead_link_enforce="error").
+    with open(ctx_file, "a", encoding="utf-8") as f:
+        f.write("\n- [Gone](knowledge/does-not-exist.md) - dead link\n")
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+
+    # Restore the clean index.
+    with open(ctx_file, "w", encoding="utf-8") as f:
+        f.write(original_ctx)
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    # 2. An unlinked topic file is an orphan WARNING (non-blocking by default).
+    with open(os.path.join(scen_dir, "knowledge", "orphan.md"), "w", encoding="utf-8") as f:
+        f.write("# Orphan topic\n")
+    res = run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+    assert "Orphan knowledge file" in res.stdout, "Orphan warning not emitted in warn mode"
+
+    # 3. Promoting orphan_enforce to "error" makes the same orphan block.
+    with open(os.path.join(scen_dir, "aethel.toml"), "w", encoding="utf-8") as f:
+        f.write('[knowledge]\norphan_enforce = "error"\n')
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+
+    print(f"{GREEN}[PASS] Scenario K completed successfully.{RESET}")
+
 def main():
     with tempfile.TemporaryDirectory() as temp_dir:
         print(f"Using temp directory: {temp_dir}")
@@ -558,6 +532,7 @@ def main():
         test_scenario_h(temp_dir)
         test_scenario_i(temp_dir)
         test_scenario_j(temp_dir)
+        test_scenario_k(temp_dir)
 
     print(f"\n{GREEN}ALL TEST SCENARIOS PASSED SUCCESSFULLY!{RESET}\n")
 

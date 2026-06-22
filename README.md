@@ -1,77 +1,53 @@
-# Aethel: AI Context & Memory Management System
+# Aethel: AI Context & Knowledge Management System
 
-Aethel is a lightweight, pragmatically designed context and prompt management boilerplate for AI agents in solo-developer projects. It separates human-authored rules (Markdown) from AI-maintained technical context (JSON Lines Graph via MCP).
+Aethel is a lightweight, provider-agnostic context and prompt management boilerplate for AI
+agents in solo-developer projects. It separates human-authored rules (Markdown) from an
+AI-maintained Markdown knowledge layer — a curated index plus a tree of atomic topic files —
+with no server or external runtime dependency.
 
 ---
 
 ## 1. File Structure
 
-* **`.gitattributes`**: Configures Git to treat `memory.json` as a binary file (`memory.json binary`) to hide noisy JSON diffs.
 * **`AETHEL.md`**: Canonical human-written orchestrator — decision routing, RNA-Blueprint plan templates, and critical coding taboos.
-* **`GEMINI.md` / `CLAUDE.md`**: Redirect stubs that point the agent at `AETHEL.md`.
-* **`aethel.toml`** *(optional)*: Linter policy — ontology (entity/relation types), required-header keywords, and language rules. Omit to use built-in defaults.
-* **`CONTEXT.md`**: Compact technical summary (under 150 lines) referencing project layouts, DDL schemas, and key paths.
-* **`memory.json`**: Newline-delimited JSON graph representing the AI agent's semantic knowledge database, managed via MCP.
+* **`AGENTS.md`**: Universal cross-agent entry point. Read natively by most coding agents; it redirects to `AETHEL.md`.
+* **`GEMINI.md` / `CLAUDE.md`**: Thin redirect stubs (for tools that look for those names) pointing at `AGENTS.md` / `AETHEL.md`.
+* **`CONTEXT.md`**: An [`llms.txt`](https://llmstxt.org/)-style index — an H1, a one-line summary, then H2 sections of annotated **inline** links into the knowledge tree. Curated, not exhaustive; kept under 150 lines.
+* **`knowledge/`**: Atomic topic files (one layer / subsystem / bounded context each, `name` + `description` frontmatter). Detail lives here, not in the index. Design decisions are append-only ADRs under `knowledge/decisions/NNNN-*.md`.
+* **`aethel.toml`** *(optional)*: Linter policy — required-header keywords, language rules, spec-sync, and `[knowledge]` index/orphan settings. Omit to use built-in defaults.
 
 ---
 
-## 2. MCP Integration & Setup
+## 2. The Markdown Knowledge Architecture
 
-To enable your AI agent to read and write to `memory.json` dynamically, integrate the official Anthropic Memory MCP server.
+Structured knowledge is plain Markdown — there is nothing to install or wire up:
 
-### A. Claude Desktop
-1. Locate the Claude Desktop configuration file:
-   * **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-   * **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-2. Open or create the file and add the server definition under `mcpServers`:
-   ```json
-   {
-     "mcpServers": {
-       "aethel-memory": {
-         "command": "npx",
-         "args": [
-           "-y",
-           "@modelcontextprotocol/server-memory"
-         ],
-         "env": {
-           "MEMORY_FILE_PATH": "c:/aethel/memory.json"
-         }
-       }
-     }
-   }
-   ```
-3. Restart Claude Desktop.
+* The **index** (`CONTEXT.md`) maps the project. Each entry is one inline link to a topic file
+  with a one-line note.
+* Each **topic file** under `knowledge/` is a single unit-of-change and unit-of-retrieval.
+* **Decisions** are recorded as numbered ADRs under `knowledge/decisions/`.
 
-### B. Cursor IDE
-1. Open Cursor and go to **Settings** -> **Features** -> **MCP**.
-2. Click **+ Add New MCP Server**.
-3. Fill in the fields:
-   * **Name**: `aethel-memory`
-   * **Type**: `command`
-   * **Command**: `npx -y @modelcontextprotocol/server-memory`
-4. **Environment Variables**:
-   Since Cursor's UI does not natively support setting environment variables directly for commands, you must launch Cursor from a terminal session where the variable is set:
-   * **PowerShell**:
-     ```powershell
-     $env:MEMORY_FILE_PATH="c:/aethel/memory.json"
-     cursor .
-     ```
-   * **Command Prompt**:
-     ```cmd
-     set MEMORY_FILE_PATH=c:/aethel/memory.json
-     cursor .
-     ```
+The linter (`aethel lint` → `check_knowledge_index`) keeps the index honest: a relative inline
+link that does not resolve on disk is an **error**; a `knowledge/*.md` file not reachable from
+the index is an **orphan warning**. External (`http(s)`/`mailto`) links and `#anchors` are
+ignored. Use inline links only — reference-style links and autolinks are intentionally not
+parsed. Severities are configurable in `aethel.toml` under `[knowledge]`.
+
+> Earlier versions stored structured knowledge in a Memory MCP server / `memory.json` graph.
+> That layer has been retired in favour of this provider-agnostic Markdown architecture; see
+> [knowledge/decisions/0001-retire-memory-graph.md](knowledge/decisions/0001-retire-memory-graph.md).
 
 ---
 
-## 3. Git-Centric Rollback & Memory Safety
+## 3. CLI
 
-Because memory is persisted in `memory.json` directly inside the repository, AI memory state is tracked in sync with code branches.
+```bash
+aethel init [path]            # scaffold a workspace (AGENTS.md, AETHEL.md, CONTEXT.md, knowledge/, ...)
+aethel init --recipe python   # also deploy a stack-specific linter recipe
+aethel update [path]          # refresh the managed core block non-destructively
+aethel lint [path]            # validate plan/checklist + knowledge-index integrity + hygiene
+```
 
-* **Clean Diffs**: `.gitattributes` masks the text-based changes so your terminal commits aren't flooded with JSON diff lines.
-* **Synchronous Rollbacks**: If you checkout an old commit or reset a branch, you restore the memory state of that exact timestamp:
-  ```bash
-  git checkout <commit_hash> memory.json
-  # OR
-  git restore memory.json
-  ```
+`aethel init` also installs a Git pre-commit hook that runs the linter, including the spec-sync
+drift guard (code staged without a spec update is flagged — Route C). Escape hatch for an
+intentionally spec-irrelevant commit: `AETHEL_SKIP_SYNC=1 git commit ...`.

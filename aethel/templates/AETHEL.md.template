@@ -33,14 +33,14 @@ When the user issues a prompt, silently categorize the work into one of three ro
   6. Upon approval, author `task.md` as a complete ordered checklist derived from the plan's Proposed Changes, then execute it in 3–5 step chunks, re-checking and editing the checklist as reality dictates.
   7. **Checklist Linting**: Once all implementation steps are finished and all tasks in `task.md` are completed, run the workspace linter.
 
-### Route C: Docs Update (MCP-driven Knowledge Graph) — MANDATORY post-step
+### Route C: Docs Update (Markdown Knowledge Index) — MANDATORY post-step
 * **Criteria**: Any changes to database schemas, API surfaces, module structures, business logic, or code patterns.
-* **This is not an optional route.** Whenever a Route A or Route B change touches the items above, you MUST complete Route C in the SAME commit, BEFORE finishing. The pre-commit linter enforces this: its `[sync]` drift check flags a commit that stages code without updating a spec file (`memory.json`, `CONTEXT.md`, or `AETHEL.md`).
+* **This is not an optional route.** Whenever a Route A or Route B change touches the items above, you MUST complete Route C in the SAME commit, BEFORE finishing. The pre-commit linter enforces this: its `[sync]` drift check flags a commit that stages code without updating a spec file (the knowledge index `CONTEXT.md`, a `knowledge/*.md` topic file, or `AETHEL.md`).
 * **Protocol**:
-  * Do NOT edit `memory.json` manually (this risks syntax vandalism).
-  * Use the Memory MCP Server tools (`create_entities`, `create_relations`, `add_observations`) to document new structures or update existing ones.
-  * Use the deletion tools (`delete_entities`, `delete_relations`, `delete_observations`) to prune and clean up stale, deprecated, or replaced rules, observations, and entities whenever refactoring or deleting codebase structures.
-  * Reflect high-level structural changes in `CONTEXT.md`; for human-readable release changes, append to `CHANGELOG.md`.
+  * Update the Markdown knowledge index (`CONTEXT.md`) and the linked `knowledge/*.md` topic files so the spec moves with the code: extend (or add) the topic file for the layer you changed, and add or fix its link in the index.
+  * Record notable design decisions as an ADR under `knowledge/decisions/NNNN-*.md`.
+  * When refactoring or deleting structures, prune the stale topic files and remove their now-dead index links — keep the index curated (one line per link), not exhaustive.
+  * For human-readable release changes, append to `CHANGELOG.md`.
   * If a commit is genuinely spec-irrelevant (typo, formatting), bypass the guard explicitly with `AETHEL_SKIP_SYNC=1 git commit ...` — do not disable the check.
 
 ---
@@ -63,8 +63,8 @@ Every complex plan must be structured as follows:
 ## Contextual Constraints (CC)
 - Reference specific rules using the namespace tag format to save tokens and prevent line-shift errors:
   - `[G-xxx]` for Orchestrator Rules (e.g. `[G-Taboo1]`, `[G-GW1]`) from AETHEL.md.
-  - `[C-xxx]` for Technical Layout Rules (e.g. `[C-DDL]`) from CONTEXT.md.
-  - `[M-xxx]` for Domain Rules (e.g. `[M-PL-6.20]`) from memory.json.
+  - `[C-xxx]` for index entries in CONTEXT.md.
+  - `[K-xxx]` for Domain Rules from a `knowledge/*.md` topic file (e.g. `[K-arch]`).
 
 ## Proposed Changes
 ### [Component/Module Name]
@@ -92,7 +92,7 @@ Every complex plan must be structured as follows:
 * Group commits by type prefix: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`.
 * **Local milestone auto-commit (default ON)**: Upon completing a coherent milestone or refactor — NOT on every edit, and never mid-task while a Route B plan still awaits approval — commit locally without being asked, following these steps:
   1. Run the workspace linter and ensure it is green BEFORE committing. Never commit a red tree.
-  2. Complete Route C in the SAME milestone: stage the matching spec updates (`memory.json` / `CONTEXT.md`) together with the code, so the `[sync]` drift guard passes naturally. Do not bypass it with `AETHEL_SKIP_SYNC` to force an auto-commit.
+  2. Complete Route C in the SAME milestone: stage the matching spec updates (the knowledge index `CONTEXT.md` and/or the relevant `knowledge/*.md` topic file) together with the code, so the `[sync]` drift guard passes naturally. Do not bypass it with `AETHEL_SKIP_SYNC` to force an auto-commit.
   3. `git status` and review the diff for secrets, large files, or stray artifacts before staging. Stage intentionally; avoid blind `git add -A` when the tree is dirty with unrelated files.
   4. `git rm <deleted-files>` (if applicable), then `git add <paths>`.
   5. `git commit -m "<prefix>: <imperative message>"` — one logical change per commit; no `auto`/timestamp messages.
@@ -100,18 +100,16 @@ Every complex plan must be structured as follows:
 
 ---
 
-## 5. Top-10 Critical Coding Taboos (Hard Constraints)
+## 5. Critical Coding Taboos (Hard Constraints)
 
-1. **NO Manual Edits to `memory.json`**: Do not edit the database file manually. Always write/read via Memory MCP tools.
-2. **Sync Code and memory.json**: When modifying files or adding modules, immediately update the memory knowledge graph to match.
-3. **Database Facades Only**: Never query the raw database context from the UI or handler layers. Use service/domain facades.
-4. **FSM State Hygiene**: Never transition state machines without validating pre-conditions and logging the transition event.
-5. **No Placeholders in Prod**: Do not commit placeholders, dry-run mocks, or unhandled `TODO` comments to the main branch.
-6. **No state.clear()**: Do not invoke global state clears without explicit backup and verification.
-7. **Clean Git Attributes**: Do not remove `.gitattributes` or bypass binary masking of database files.
-8. **Fail-Fast Error Handling**: Never catch exceptions silently. Always log with tracebacks and propagate where appropriate.
-9. **Keep Context.md Under 150 Lines**: Do not dump technical details into `CONTEXT.md` that belong in the memory knowledge graph.
-10. **Linter Compliance**: Do not ignore warnings from the linter. Fix them before finishing.
+1. **Sync Code and the Knowledge Index**: When modifying files or adding modules, immediately update the Markdown knowledge index (`CONTEXT.md`) and the relevant `knowledge/*.md` topic file to match.
+2. **Database Facades Only**: Never query the raw database context from the UI or handler layers. Use service/domain facades.
+3. **FSM State Hygiene**: Never transition state machines without validating pre-conditions and logging the transition event.
+4. **No Placeholders in Prod**: Do not commit placeholders, dry-run mocks, or unhandled `TODO` comments to the main branch — this includes placeholder index links or topic files.
+5. **No state.clear()**: Do not invoke global state clears without explicit backup and verification.
+6. **Fail-Fast Error Handling**: Never catch exceptions silently. Always log with tracebacks and propagate where appropriate.
+7. **Keep Context.md Under 150 Lines**: `CONTEXT.md` is a curated index — push detail down into `knowledge/*.md` topic files, do not dump it inline.
+8. **Linter Compliance**: Do not ignore warnings from the linter. Fix them before finishing.
 
 ---
 
@@ -123,6 +121,14 @@ Every complex plan must be structured as follows:
 * **venv**: Call the local environment's python/pip directly for all Python executions.
 * **One thesis, one agent.** When delegating analysis to a sub-agent, spawn one agent per distinct question/thesis — never bundle multiple analyses into a single agent. Relay each result separately.
 * **Delegate only when it pays.** A sub-agent starts cold and re-derives context you already hold — the expensive path. Spawn one only when the analysis needs broad or independent context you do not already have (large fan-out search, heavy cross-file review). When the relevant context is already loaded and the question is simple, analyze inline. If asked to use an agent for something already in context and trivial, say inline is cheaper and confirm before spawning.
+
+---
+
+## 7. Specification Architecture (Markdown Knowledge Layer)
+Structured knowledge is plain Markdown, provider-agnostic, with no server dependency:
+* **Index → topics → decisions.** `CONTEXT.md` is an `llms.txt`-style index: an H1, a one-line summary, then H2 sections of annotated **inline** links (`[topic](knowledge/topic.md) — one-line note`). It is curated, not exhaustive, and stays ≈ one screen. Detail lives DOWN in `knowledge/*.md` atomic topic files; design decisions are append-only ADRs under `knowledge/decisions/NNNN-*.md`.
+* **Granularity.** One topic file = one unit-of-change and unit-of-retrieval (a layer / subsystem / bounded context), ~50–200 lines, a single H1, with `name` + `description` frontmatter. If a topic is 2–3 lines, keep it in the index; if a file no longer reads in one sitting, split it.
+* **Links are relative Markdown.** Index links resolve on disk relative to the index; the linter (`check_knowledge_index`) treats a dead link as an error and an unlinked topic file (orphan) as a warning. Use inline links only.
 <!-- AETHEL:MANAGED:END id=aethel-core -->
 
 <!-- Add project-specific rules, overrides and custom prefixes BELOW this line. -->

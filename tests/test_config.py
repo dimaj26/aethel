@@ -1,30 +1,52 @@
 from aethel.config import (
-    DEFAULT_ENTITY_TYPES,
-    DEFAULT_RELATION_TYPES,
+    DEFAULT_SPEC_FILES,
     load_config,
 )
 
 
 def test_defaults_when_no_file(tmp_path):
     cfg = load_config(str(tmp_path))
-    assert cfg.entity_types == set(DEFAULT_ENTITY_TYPES)
-    assert cfg.relation_types == set(DEFAULT_RELATION_TYPES)
     assert cfg.structure_enforce == "error"
     assert cfg.artifact_lang == "any"
     assert cfg.report_lang == "any"
     assert cfg.artifact_whitelist == []
+    # Spec = the Markdown knowledge layer (memory.json retired).
+    assert cfg.spec_files == list(DEFAULT_SPEC_FILES)
+    assert "memory.json" not in cfg.spec_files
+    assert "knowledge/*" in cfg.spec_files
 
 
-def test_custom_ontology_replaces_defaults(tmp_path):
+def test_knowledge_defaults(tmp_path):
+    cfg = load_config(str(tmp_path))
+    assert cfg.knowledge_index == "CONTEXT.md"
+    assert cfg.knowledge_dir == "knowledge"
+    assert cfg.dead_link_enforce == "error"
+    assert cfg.orphan_enforce == "warn"
+
+
+def test_knowledge_overrides(tmp_path):
     (tmp_path / "aethel.toml").write_text(
-        '[ontology]\n'
-        'entity_types = ["Widget", "Gadget"]\n'
-        'relation_types = ["binds"]\n',
+        '[knowledge]\n'
+        'index_file = "INDEX.md"\n'
+        'dir = "docs"\n'
+        'dead_link_enforce = "warn"\n'
+        'orphan_enforce = "error"\n',
         encoding="utf-8",
     )
     cfg = load_config(str(tmp_path))
-    assert cfg.entity_types == {"Widget", "Gadget"}
-    assert cfg.relation_types == {"binds"}
+    assert cfg.knowledge_index == "INDEX.md"
+    assert cfg.knowledge_dir == "docs"
+    assert cfg.dead_link_enforce == "warn"
+    assert cfg.orphan_enforce == "error"
+
+
+def test_invalid_knowledge_enforce_falls_back(tmp_path):
+    (tmp_path / "aethel.toml").write_text(
+        '[knowledge]\ndead_link_enforce = "nonsense"\n',
+        encoding="utf-8",
+    )
+    cfg = load_config(str(tmp_path))
+    assert cfg.dead_link_enforce == "error"  # invalid -> default
 
 
 def test_structure_and_language_overrides(tmp_path):
@@ -80,4 +102,5 @@ def test_malformed_toml_is_safe(tmp_path):
     (tmp_path / "aethel.toml").write_text("this is = = not valid toml [[", encoding="utf-8")
     cfg = load_config(str(tmp_path))
     # Fail open: defaults are used rather than crashing or relaxing rules.
-    assert cfg.entity_types == set(DEFAULT_ENTITY_TYPES)
+    assert cfg.spec_files == list(DEFAULT_SPEC_FILES)
+    assert cfg.dead_link_enforce == "error"

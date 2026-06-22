@@ -152,21 +152,26 @@ def write_pre_commit_hook(dest_dir: str, verb: str) -> None:
         print(f"Warning: could not write Git pre-commit hook: {e}")
 
 
+GITATTRIBUTES_LINE = "* text=auto"
+
+
 def ensure_gitattributes(dest_dir: str, overwrite: bool) -> None:
-    """Ensure memory.json is masked from diffs. Uses the `binary` attribute
-    (which implies -diff -merge -text) so diffs stay clean — `merge=binary`
-    alone would NOT suppress diffs."""
+    """Ensure `.gitattributes` declares `* text=auto` for consistent line endings.
+
+    The old `memory.json binary` masking rule is retired with the knowledge graph.
+    Idempotent: appends the line to an existing file only if absent."""
     gitattrib_path = os.path.join(dest_dir, ".gitattributes")
     if os.path.exists(gitattrib_path):
         try:
             with open(gitattrib_path, "r", encoding="utf-8") as f:
                 content = f.read()
-            if "memory.json" not in content:
+            if GITATTRIBUTES_LINE not in content:
+                sep = "" if content.endswith("\n") or content == "" else "\n"
                 with open(gitattrib_path, "a", encoding="utf-8") as f:
-                    f.write("\nmemory.json binary\n")
-                print("Appended memory.json attribute to existing .gitattributes")
+                    f.write(f"{sep}{GITATTRIBUTES_LINE}\n")
+                print("Appended '* text=auto' to existing .gitattributes")
             else:
-                print("Skipping .gitattributes: memory.json attribute already exists.")
+                print("Skipping .gitattributes: '* text=auto' already present.")
         except Exception as e:
             print(f"Warning: could not check/append to .gitattributes: {e}")
     else:
@@ -333,15 +338,16 @@ def cmd_init(args: argparse.Namespace) -> None:
 
     # 3. Copy Aethel templates
     copy_template("AETHEL.md.template", "AETHEL.md", dest_dir, overwrite=args.force)
+    copy_template("AGENTS.md.template", "AGENTS.md", dest_dir, overwrite=args.force)
     copy_template("GEMINI.md.template", "GEMINI.md", dest_dir, overwrite=args.force)
     copy_template("CLAUDE.md.template", "CLAUDE.md", dest_dir, overwrite=args.force)
     copy_template("CONTEXT.md.template", "CONTEXT.md", dest_dir, overwrite=args.force)
-    copy_template("memory.json.template", "memory.json", dest_dir, overwrite=args.force)
     copy_template("aethel.toml.template", "aethel.toml", dest_dir, overwrite=args.force)
     copy_template("AETHEL_ONBOARDING.md.template", "AETHEL_ONBOARDING.md", dest_dir, overwrite=args.force)
 
-    # 4. Copy .agents plugin
+    # 4. Copy .agents plugin and the knowledge/ topic-tree seed
     copy_template_dir(".agents", ".agents", dest_dir, overwrite=args.force)
+    copy_template_dir("knowledge", "knowledge", dest_dir, overwrite=args.force)
 
     # 5. Create wrapper prompt_linter.py
     linter_wrapper_path = os.path.join(dest_dir, "prompt_linter.py")
@@ -364,7 +370,7 @@ def cmd_init(args: argparse.Namespace) -> None:
             sys.exit(2)
         apply_recipe(recipe, dest_dir, force=args.force)
 
-    print("Aethel initialization complete. Please configure your Memory MCP server path in AETHEL_ONBOARDING.md.")
+    print("Aethel initialization complete. Populate the CONTEXT.md index and knowledge/ topic files (see AETHEL_ONBOARDING.md).")
 
 
 def cmd_lint(args: argparse.Namespace) -> None:
@@ -435,7 +441,8 @@ def cmd_update(args: argparse.Namespace) -> None:
     # 3. Refresh AETHEL.md managed core, preserving customizations
     _update_aethel_md(dest_dir)
 
-    # 4. Overwrite redirection stubs (GEMINI.md, CLAUDE.md) and onboarding gate
+    # 4. Overwrite redirection stubs (AGENTS.md, GEMINI.md, CLAUDE.md) and onboarding gate
+    copy_template("AGENTS.md.template", "AGENTS.md", dest_dir, overwrite=True)
     copy_template("GEMINI.md.template", "GEMINI.md", dest_dir, overwrite=True)
     copy_template("CLAUDE.md.template", "CLAUDE.md", dest_dir, overwrite=True)
     copy_template("AETHEL_ONBOARDING.md.template", "AETHEL_ONBOARDING.md", dest_dir, overwrite=True)
@@ -462,7 +469,7 @@ def main() -> None:
     p_init.set_defaults(func=cmd_init)
 
     # lint subcommand
-    p_lint = subparsers.add_parser("lint", help="Validate workspace plan files and memory.json integrity")
+    p_lint = subparsers.add_parser("lint", help="Validate workspace plan files and knowledge-index integrity")
     p_lint.add_argument("path", nargs="?", default=".", help="Workspace path to lint (default: current)")
     p_lint.set_defaults(func=cmd_lint)
 

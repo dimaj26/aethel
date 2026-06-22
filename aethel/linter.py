@@ -1,11 +1,9 @@
 import argparse
 import fnmatch
-import json
 import os
 import re
 import subprocess
 import sys
-from typing import Any
 
 from aethel.config import AethelConfig, load_config
 from aethel.markers import extract_managed_block, normalize_block
@@ -202,151 +200,101 @@ def check_plan_stage(workspace_path: str, cfg: AethelConfig | None = None) -> bo
     return plan_ok and task_ok
 
 
-def check_memory_integrity(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
-    """Validates memory.json graph integrity in the workspace."""
-    cfg = _resolve_cfg(workspace_path, cfg)
-    print("--- Running Memory Graph Integrity Validation ---")
-    memory_path = os.path.join(workspace_path, "memory.json")
+_INLINE_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
-    if not os.path.exists(memory_path):
-        print_error(f"Memory database '{memory_path}' not found!")
+
+def _emit(severity: str, msg: str) -> bool:
+    """Print msg at the configured severity. Returns True iff it blocks (error)."""
+    if severity == "off":
         return False
+    if severity == "warn":
+        print_warning(msg)
+        return False
+    print_error(msg)
+    return True
 
-    allowed_entity_types = sorted(cfg.entity_types)
-    allowed_relation_types = sorted(cfg.relation_types)
 
-    entities: dict[str, dict[str, Any]] = {}
-    relations: list[dict[str, Any]] = []
-    line_number = 0
+def _extract_inline_links(content: str) -> list[str]:
+    """Inline Markdown link targets (``[text](target)``) only.
+
+    An ``llms.txt``-style index is inline-heavy; reference-style links
+    (``[ref]: path``) and autolinks (``<path>``) are intentionally out of scope so
+    orphan detection cannot false-positive a file that *is* linked by a form this
+    does not parse. The template index must therefore use inline links exclusively.
+    """
+    return _INLINE_LINK_RE.findall(content)
+
+
+def _is_external_link(target: str) -> bool:
+    return target.strip().lower().startswith(("http://", "https://", "mailto:"))
+
+
+def check_knowledge_index(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
+    """Validate the Markdown knowledge index and its ``knowledge/`` topic tree.
+
+    Replaces the retired ``memory.json`` graph integrity check. It keeps the
+    guarantees that matter for a curated link index (a DAG, so no cycle/typed-
+    relation modelling is needed):
+
+    * the index file (default ``CONTEXT.md``) exists and is not a bare placeholder;
+    * every relative inline link in the index resolves on disk (dead link is an
+      error by default) — anchors stripped, ``\\``→``/`` normalized, resolved
+      relative to the index file, ``http(s)``/``mailto`` skipped;
+    * every ``*.md`` topic file under the knowledge dir is reachable from the index
+      (an orphan is a warning by default). The index itself and the entry stubs
+      live outside the knowledge dir and are thus naturally exempt.
+
+    Severities come from config. Returns False only on an error-severity problem.
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    print("--- Running Knowledge Index Integrity Validation ---")
+    index_path = os.path.join(workspace_path, cfg.knowledge_index)
     has_errors = False
 
-    with open(memory_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line_number += 1
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                data = json.loads(line)
-            except json.JSONDecodeError as e:
-                print_error(f"Line {line_number}: Invalid JSON syntax - {e}")
-                has_errors = True
-                continue
+    if not os.path.exists(index_path):
+        print_error(f"Knowledge index '{cfg.knowledge_index}' not found.")
+        return False
 
-            record_type = data.get("type")
-            if record_type == "entity":
-                name = data.get("name")
-                entity_type = data.get("entityType")
-                observations = data.get("observations", [])
+    with open(index_path, "r", encoding="utf-8") as f:
+        content = f.read()
 
-                if not name:
-                    print_error(f"Line {line_number}: Entity is missing 'name'.")
-                    has_errors = True
-                elif name in entities:
-                    print_warning(f"Line {line_number}: Entity '{name}' is duplicated.")
-                else:
-                    entities[name] = {"entityType": entity_type, "observations": observations, "line": line_number}
+    for ph in cfg.placeholder_markers:
+        if ph in content:
+            print_warning(f"Knowledge index '{cfg.knowledge_index}' contains placeholder: '{ph}'.")
 
-                if entity_type not in cfg.entity_types:
-                    print_error(f"Line {line_number}: Entity '{name}' has invalid entityType '{entity_type}'. Allowed types: {allowed_entity_types}")
-                    has_errors = True
+    # Dead-link check; also record which on-disk files the index references so the
+    # orphan check below knows what is reachable.
+    index_dir = os.path.dirname(index_path)
+    linked: set[str] = set()
+    for target in _extract_inline_links(content):
+        if _is_external_link(target):
+            continue
+        rel = target.split("#", 1)[0].strip().replace("\\", "/")
+        if not rel:
+            continue  # pure in-page anchor (#section)
+        resolved = os.path.normpath(os.path.join(index_dir, rel))
+        if os.path.exists(resolved):
+            linked.add(os.path.normcase(resolved))
+        elif _emit(cfg.dead_link_enforce, f"Knowledge index dead link: '{target}' does not resolve on disk."):
+            has_errors = True
 
-                for obs in observations:
-                    if any(placeholder in obs for placeholder in cfg.placeholder_markers):
-                        print_warning(f"Line {line_number}: Entity '{name}' observation contains placeholder: '{obs}'")
-
-            elif record_type == "relation":
-                from_node = data.get("from")
-                to_node = data.get("to")
-                rel_type = data.get("relationType")
-
-                if not from_node or not to_node or not rel_type:
-                    print_error(f"Line {line_number}: Relation is missing 'from', 'to', or 'relationType'.")
-                    has_errors = True
-                else:
-                    relations.append({"from": from_node, "to": to_node, "relationType": rel_type, "line": line_number})
-
-                if rel_type and rel_type not in cfg.relation_types:
-                    print_error(f"Line {line_number}: Relation '{from_node}' -> '{to_node}' has invalid relationType '{rel_type}'. Allowed types: {allowed_relation_types}")
-                    has_errors = True
-            else:
-                print_warning(f"Line {line_number}: Unknown record type '{record_type}'. Skipping.")
+    # Orphan check: every topic .md under the knowledge dir must be linked.
+    knowledge_root = os.path.join(workspace_path, cfg.knowledge_dir)
+    if os.path.isdir(knowledge_root):
+        for root, _dirs, files in os.walk(knowledge_root):
+            for fname in files:
+                if not fname.lower().endswith(".md"):
+                    continue
+                topic = os.path.normpath(os.path.join(root, fname))
+                if os.path.normcase(topic) not in linked:
+                    topic_rel = os.path.relpath(topic, workspace_path).replace("\\", "/")
+                    if _emit(cfg.orphan_enforce, f"Orphan knowledge file: '{topic_rel}' is not linked from the index."):
+                        has_errors = True
 
     if has_errors:
         return False
-
-    # Check 1: Mandatory core nodes
-    if not entities:
-        print_error("No entities found in memory.json.")
-        has_errors = True
-
-    # Check 2: Broken Relations
-    for rel in relations:
-        if rel["from"] not in entities:
-            print_error(f"Line {rel['line']}: Relation 'from' node '{rel['from']}' does not exist in entities.")
-            has_errors = True
-        if rel["to"] not in entities:
-            print_error(f"Line {rel['line']}: Relation 'to' node '{rel['to']}' does not exist in entities.")
-            has_errors = True
-
-    # Check 3: Orphan Rules/Entities
-    connected_entities = set()
-    for rel in relations:
-        connected_entities.add(rel["from"])
-        connected_entities.add(rel["to"])
-
-    for entity_name in entities:
-        if entity_name not in connected_entities:
-            print_warning(f"Orphan entity detected: '{entity_name}' (no relations link to or from it).")
-
-    # Check 4: Cycle detection (iterative DFS to avoid recursion limits on large graphs)
-    adj: dict[str, list[str]] = {name: [] for name in entities}
-    for rel in relations:
-        if rel["from"] in adj:
-            adj[rel["from"]].append(rel["to"])
-
-    if _has_cycle(adj):
-        has_errors = True
-
-    if not has_errors:
-        print_success("Knowledge Graph integrity check passed successfully.")
-        return True
-    else:
-        return False
-
-
-def _has_cycle(adj: dict[str, list[str]]) -> bool:
-    """Iterative DFS cycle detection. Reports the first back-edge found.
-
-    States: 0/absent = unvisited, 1 = on current stack, 2 = fully explored.
-    """
-    visited: dict[str, int] = {}
-    cycle_detected = False
-
-    for start in adj:
-        if start in visited:
-            continue
-        # Stack holds (node, iterator over neighbors).
-        stack: list[tuple[str, Any]] = [(start, iter(adj.get(start, [])))]
-        visited[start] = 1
-        while stack:
-            node, neighbors = stack[-1]
-            advanced = False
-            for neighbor in neighbors:
-                state = visited.get(neighbor)
-                if state == 1:
-                    print_error(f"Dependency cycle detected involving node: '{node}' -> '{neighbor}'.")
-                    cycle_detected = True
-                elif state is None:
-                    visited[neighbor] = 1
-                    stack.append((neighbor, iter(adj.get(neighbor, []))))
-                    advanced = True
-                    break
-            if not advanced:
-                visited[node] = 2
-                stack.pop()
-
-    return cycle_detected
+    print_success("Knowledge index integrity check passed successfully.")
+    return True
 
 
 def _check_required_headers(
@@ -376,8 +324,10 @@ def check_workspace_hygiene(
     print("--- Running Workspace Hygiene Validation ---")
     has_errors = False
 
-    # 1. Verify core files presence
-    core_files = ["AETHEL.md", "CONTEXT.md", "memory.json", ".gitattributes"]
+    # 1. Verify core files presence (memory.json retired in favour of the Markdown
+    # knowledge layer; the index file and knowledge dir are checked below + by
+    # check_knowledge_index).
+    core_files = ["AETHEL.md", "CONTEXT.md", ".gitattributes"]
     for core_file in core_files:
         fpath = os.path.join(workspace_path, core_file)
         if not os.path.exists(fpath):
@@ -386,21 +336,26 @@ def check_workspace_hygiene(
         else:
             print_success(f"Core file present: {core_file}")
 
-    # 1.1 Verify CONTEXT.md does not contain boilerplate placeholders + required headers
+    # 1.1 Verify CONTEXT.md required headers (placeholder/link integrity is enforced
+    # by check_knowledge_index). With the default index format the library ships no
+    # required CONTEXT headers, so this is a no-op unless a project configures some.
     context_path = os.path.join(workspace_path, "CONTEXT.md")
     if os.path.exists(context_path):
         try:
             with open(context_path, "r", encoding="utf-8") as fh:
                 ctx_content = fh.read()
-            placeholders = ["[e.g. Next.js 15", "[Insert SQL DDL"]
-            for ph in placeholders:
-                if ph in ctx_content:
-                    print_warning(f"CONTEXT.md contains default template placeholder '{ph}'. Please populate it with actual project details.")
             if _check_required_headers("CONTEXT.md", ctx_content, cfg.context_headers, cfg):
                 has_errors = True
         except Exception as e:
             print_error(f"Failed to read CONTEXT.md for structural checks: {e}")
             has_errors = True
+
+    # 1.05 Verify the knowledge topic tree exists (the index links into it).
+    knowledge_root = os.path.join(workspace_path, cfg.knowledge_dir)
+    if os.path.isdir(knowledge_root):
+        print_success(f"Knowledge directory present: {cfg.knowledge_dir}")
+    else:
+        print_warning(f"Knowledge directory '{cfg.knowledge_dir}' is absent; topic detail should live there.")
 
     # 1.2 Verify AETHEL.md required headers presence
     aethel_path = os.path.join(workspace_path, "AETHEL.md")
@@ -418,17 +373,16 @@ def check_workspace_hygiene(
     if not check_core_consistency(workspace_path, cfg):
         has_errors = True
 
-    # 2. Verify gitattributes configuration
+    # 2. Verify .gitattributes is present and readable. The old `memory.json binary`
+    # merge rule is retired (the graph is gone); the shipped template now declares
+    # `* text=auto` for consistent line endings. Presence is already covered by the
+    # core-files loop above; here we just confirm it reads.
     gitattrib_path = os.path.join(workspace_path, ".gitattributes")
     if os.path.exists(gitattrib_path):
         try:
-            with open(gitattrib_path, "r", encoding="utf-8") as fh:
-                content = fh.read()
-            if "memory.json" not in content:
-                print_error("File '.gitattributes' exists but does not configure 'memory.json' merge rule.")
-                has_errors = True
-            else:
-                print_success("Git attributes merge configuration for memory.json is valid.")
+            with open(gitattrib_path, "r", encoding="utf-8"):
+                pass
+            print_success("Git attributes file present and readable.")
         except Exception as e:
             print_error(f"Failed to read '.gitattributes': {e}")
             has_errors = True
@@ -550,8 +504,8 @@ def check_spec_sync(workspace_path: str, cfg: AethelConfig | None = None) -> boo
     msg = (
         "Spec drift: code files are staged but no spec file "
         f"({', '.join(cfg.spec_files)}) was updated in this commit. "
-        "Update the knowledge graph / CONTEXT.md (Route C), or set "
-        "AETHEL_SKIP_SYNC=1 for an intentionally spec-irrelevant commit."
+        "Update the knowledge index (CONTEXT.md) or a knowledge/ topic file "
+        "(Route C), or set AETHEL_SKIP_SYNC=1 for an intentionally spec-irrelevant commit."
     )
     if cfg.sync_enforce == "error":
         print_error(msg)
@@ -682,11 +636,11 @@ def run_linter(workspace_path: str = ".") -> bool:
     cfg = load_config(workspace_path)
     plan_ok = check_plan_stage(workspace_path, cfg)
     print()
-    memory_ok = check_memory_integrity(workspace_path, cfg)
+    knowledge_ok = check_knowledge_index(workspace_path, cfg)
     print()
-    hygiene_ok = check_workspace_hygiene(workspace_path, other_checks_passed=(plan_ok and memory_ok), cfg=cfg)
+    hygiene_ok = check_workspace_hygiene(workspace_path, other_checks_passed=(plan_ok and knowledge_ok), cfg=cfg)
     print()
-    return plan_ok and memory_ok and hygiene_ok
+    return plan_ok and knowledge_ok and hygiene_ok
 
 
 def main() -> None:
@@ -719,14 +673,14 @@ def main() -> None:
         # Parameterless run / General checks (Pre-commit hook default)
         plan_ok = check_plan_stage(workspace, cfg)
         print()
-        memory_ok = check_memory_integrity(workspace, cfg)
+        knowledge_ok = check_knowledge_index(workspace, cfg)
         print()
-        hygiene_ok = check_workspace_hygiene(workspace, other_checks_passed=(plan_ok and memory_ok), cfg=cfg)
+        hygiene_ok = check_workspace_hygiene(workspace, other_checks_passed=(plan_ok and knowledge_ok), cfg=cfg)
         print()
         sync_ok = check_spec_sync(workspace, cfg)
         changelog_ok = check_changelog_sync(workspace, cfg)
 
-        if plan_ok and memory_ok and hygiene_ok and sync_ok and changelog_ok:
+        if plan_ok and knowledge_ok and hygiene_ok and sync_ok and changelog_ok:
             print_success("All linter checks PASSED.")
             sys.exit(0)
         else:

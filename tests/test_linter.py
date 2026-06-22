@@ -4,81 +4,14 @@ from aethel.linter import (
     _changelog_drift,
     _check_required_headers,
     _classify_staged,
-    _has_cycle,
     _heading_present,
     _installed_core_block,
     check_changelog_sync,
     check_core_consistency,
-    check_memory_integrity,
+    check_knowledge_index,
     check_plan_file,
     check_spec_sync,
 )
-
-
-def _write_memory(path, lines):
-    path.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
-
-
-def test_valid_ontology_passes(tmp_path):
-    _write_memory(
-        tmp_path / "memory.json",
-        [
-            '{"type":"entity","name":"A","entityType":"Component","observations":[]}',
-            '{"type":"entity","name":"B","entityType":"Layer","observations":[]}',
-            '{"type":"relation","from":"A","to":"B","relationType":"uses"}',
-        ],
-    )
-    assert check_memory_integrity(str(tmp_path)) is True
-
-
-def test_invalid_entity_type_fails(tmp_path):
-    _write_memory(
-        tmp_path / "memory.json",
-        [
-            '{"type":"entity","name":"A","entityType":"bogus","observations":[]}',
-            '{"type":"entity","name":"B","entityType":"Layer","observations":[]}',
-            '{"type":"relation","from":"A","to":"B","relationType":"uses"}',
-        ],
-    )
-    assert check_memory_integrity(str(tmp_path)) is False
-
-
-def test_invalid_relation_type_fails(tmp_path):
-    _write_memory(
-        tmp_path / "memory.json",
-        [
-            '{"type":"entity","name":"A","entityType":"Component","observations":[]}',
-            '{"type":"entity","name":"B","entityType":"Layer","observations":[]}',
-            '{"type":"relation","from":"A","to":"B","relationType":"bogus"}',
-        ],
-    )
-    assert check_memory_integrity(str(tmp_path)) is False
-
-
-def test_custom_ontology_via_config(tmp_path):
-    cfg = AethelConfig(entity_types={"Widget"}, relation_types={"binds"})
-    _write_memory(
-        tmp_path / "memory.json",
-        [
-            '{"type":"entity","name":"A","entityType":"Widget","observations":[]}',
-            '{"type":"entity","name":"B","entityType":"Widget","observations":[]}',
-            '{"type":"relation","from":"A","to":"B","relationType":"binds"}',
-        ],
-    )
-    assert check_memory_integrity(str(tmp_path), cfg) is True
-
-
-def test_cycle_detection():
-    assert _has_cycle({"A": ["B"], "B": ["A"]}) is True
-    assert _has_cycle({"A": ["B"], "B": ["C"], "C": []}) is False
-
-
-def test_cycle_detection_deep_chain_no_recursion_error():
-    # Linear chain far beyond the default recursion limit must not raise.
-    n = 5000
-    adj = {f"N{i}": [f"N{i+1}"] for i in range(n)}
-    adj[f"N{n}"] = []
-    assert _has_cycle(adj) is False
 
 
 def test_heading_present_is_lenient():
@@ -113,7 +46,8 @@ def test_classify_staged_drift():
     cfg = AethelConfig()
     assert _classify_staged(["src/module.py"], cfg) == (True, False)  # code only -> drift
     assert _classify_staged(["CONTEXT.md"], cfg) == (False, True)  # spec only
-    assert _classify_staged(["src/module.py", "memory.json"], cfg) == (True, True)  # both
+    assert _classify_staged(["src/module.py", "CONTEXT.md"], cfg) == (True, True)  # both
+    assert _classify_staged(["app.py", "knowledge/arch.md"], cfg) == (True, True)  # topic file is a spec
     assert _classify_staged(["tests/test_x.py"], cfg) == (False, False)  # ignored test file
     assert _classify_staged(["README.md"], cfg) == (False, False)  # doc, not watched
 
@@ -174,6 +108,78 @@ def test_core_consistency_flags_in_block_edit(tmp_path):
 def test_core_consistency_flags_missing_block(tmp_path):
     (tmp_path / "AETHEL.md").write_text("# Forked file with no managed markers\n", encoding="utf-8")
     assert check_core_consistency(str(tmp_path), AethelConfig(consistency_enforce="error")) is False
+
+
+def _write_index(tmp_path, body):
+    (tmp_path / "CONTEXT.md").write_text(body, encoding="utf-8")
+
+
+def test_knowledge_index_flags_dead_link_and_orphan(tmp_path, capsys):
+    """TDD reproducer: a dead index link is an error; an unlinked knowledge file
+    is an orphan warning."""
+    kn = tmp_path / "knowledge"
+    kn.mkdir()
+    (kn / "real.md").write_text("# Real topic\n", encoding="utf-8")
+    (kn / "orphan.md").write_text("# Orphan topic\n", encoding="utf-8")
+    # Index links one real file and one missing file; never links orphan.md.
+    (tmp_path / "CONTEXT.md").write_text(
+        "# Index\n\n> summary\n\n"
+        "## Topics\n"
+        "- [Real](knowledge/real.md) — present\n"
+        "- [Missing](knowledge/ghost.md) — dead link\n",
+        encoding="utf-8",
+    )
+    ok = check_knowledge_index(str(tmp_path))
+    out = capsys.readouterr().out
+    assert ok is False  # dead link is an error
+    assert "ghost.md" in out  # the dead link is named
+    assert "orphan.md" in out  # the orphan is warned about
+
+
+def test_knowledge_index_passes_when_links_resolve(tmp_path):
+    kn = tmp_path / "knowledge"
+    kn.mkdir()
+    (kn / "arch.md").write_text("# Arch\n", encoding="utf-8")
+    (kn / "decisions").mkdir()
+    (kn / "decisions" / "0001-x.md").write_text("# ADR\n", encoding="utf-8")
+    _write_index(
+        tmp_path,
+        "# Index\n\n> summary\n\n## Topics\n"
+        "- [Arch](knowledge/arch.md) — present\n"
+        "- [ADR 1](knowledge/decisions/0001-x.md) — present\n"
+        "- [Anthropic](https://www.anthropic.com) — external, ignored\n"
+        "- [Self](#topics) — in-page anchor, ignored\n",
+    )
+    assert check_knowledge_index(str(tmp_path)) is True
+
+
+def test_knowledge_index_dead_link_severity_configurable(tmp_path):
+    _write_index(tmp_path, "# Index\n\n- [Gone](knowledge/missing.md)\n")
+    # Default: dead link is an error.
+    assert check_knowledge_index(str(tmp_path)) is False
+    # Downgraded to a warning via config.
+    assert check_knowledge_index(str(tmp_path), AethelConfig(dead_link_enforce="warn")) is True
+
+
+def test_knowledge_index_orphan_can_be_promoted_to_error(tmp_path):
+    kn = tmp_path / "knowledge"
+    kn.mkdir()
+    (kn / "lonely.md").write_text("# Lonely\n", encoding="utf-8")
+    _write_index(tmp_path, "# Index\n\n> summary\n\n## Topics\n- nothing linked\n")
+    # Orphan defaults to a warning (non-blocking)...
+    assert check_knowledge_index(str(tmp_path)) is True
+    # ...but can be promoted to an error.
+    assert check_knowledge_index(str(tmp_path), AethelConfig(orphan_enforce="error")) is False
+
+
+def test_knowledge_index_missing_is_error(tmp_path):
+    assert check_knowledge_index(str(tmp_path)) is False
+
+
+def test_knowledge_index_placeholder_warns(tmp_path, capsys):
+    _write_index(tmp_path, "# Index\n\n> [Insert summary here]\n")
+    check_knowledge_index(str(tmp_path))
+    assert "placeholder" in capsys.readouterr().out.lower()
 
 
 def test_plan_language_respects_config(tmp_path):

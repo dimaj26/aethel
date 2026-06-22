@@ -1,11 +1,10 @@
 """Aethel workspace configuration.
 
-The linter's ontology, required structure and language policy used to be
-hard-coded. That made Aethel unusable as a multi-project library: a fixed set
-of entity/relation types and rigid headings cannot fit every stack. This module
-loads an optional ``aethel.toml`` from the workspace root and falls back to
-language-neutral defaults, so behaviour stays backward-compatible when no config
-is present.
+The linter's required structure and language policy used to be hard-coded. That
+made Aethel unusable as a multi-project library: rigid headings cannot fit every
+stack. This module loads an optional ``aethel.toml`` from the workspace root and
+falls back to language-neutral defaults, so behaviour stays backward-compatible
+when no config is present.
 """
 
 from __future__ import annotations
@@ -14,24 +13,13 @@ import os
 import tomllib
 from dataclasses import dataclass, field
 
-# Default ontology. Intentionally broader than the original 7/8 sets so that
-# common project structures (scripts, config, migrations, libraries, jobs) do
-# not require a custom config just to pass the linter.
-DEFAULT_ENTITY_TYPES = {
-    "Framework", "Tool", "Layer", "Component", "DataModel", "ExternalService",
-    "Route", "Script", "Config", "Job", "Migration", "Library",
-}
-DEFAULT_RELATION_TYPES = {
-    "uses", "defines", "calls", "renders", "tests", "stores", "part_of",
-    "depends_on", "configures", "extends", "implements",
-}
-
 # Structure checks match a heading line (starting with ##) that *contains* the
 # keyword, case-insensitively. This is far less brittle than pinning the exact
-# numbered title, while still catching a missing section.
-DEFAULT_CONTEXT_HEADERS = [
-    "Directory Structure", "Database Schema", "Coding Taboos", "Navigation Map",
-]
+# numbered title, while still catching a missing section. CONTEXT.md is now an
+# `llms.txt`-style index whose section names are project-specific (CC-1), so the
+# library ships no required CONTEXT headers — its integrity is enforced by the
+# knowledge-index check instead. AETHEL.md still has a stable rulebook shape.
+DEFAULT_CONTEXT_HEADERS: list[str] = []
 DEFAULT_AETHEL_HEADERS = [
     "Decision Routing", "RNA-Blueprint", "Debugging", "Git Commit",
     "Coding Taboos", "Response Rules",
@@ -48,10 +36,19 @@ DEFAULT_SYNC_WATCHED = [
     "*.php", "*.cs", "*.sql", "*.kt", "*.swift", "*.c", "*.cpp", "*.h", "*.hpp",
 ]
 DEFAULT_SYNC_IGNORED = [
-    "*test*", "*spec*", "*.md", "memory.json", "*.lock", "*.min.js",
+    "*test*", "*spec*", "*.md", "*.lock", "*.min.js",
     "*/node_modules/*", "*/__pycache__/*", "*/.venv/*", "venv/*", "*/dist/*", "*/build/*",
 ]
-DEFAULT_SPEC_FILES = ["memory.json", "CONTEXT.md", "AETHEL.md"]
+# Spec = the Markdown knowledge layer: the index, the rulebook, and any topic
+# file under the knowledge tree. Editing the index or ANY topic file satisfies
+# Route C spec-sync (`*` spans `/` in this codebase's fnmatch, so "knowledge/*"
+# matches nested topics too).
+DEFAULT_SPEC_FILES = ["CONTEXT.md", "AETHEL.md", "knowledge/*"]
+
+# Knowledge-index integrity defaults. The index is an `llms.txt`-style curated
+# file (default CONTEXT.md) of inline links into a `knowledge/` topic tree.
+DEFAULT_KNOWLEDGE_INDEX = "CONTEXT.md"
+DEFAULT_KNOWLEDGE_DIR = "knowledge"
 
 # Rule-change ⇒ changelog pairing. When a governance/rule file is staged, the
 # human-readable history (CHANGELOG.md) is expected to move with it, so the
@@ -66,8 +63,6 @@ _VALID_LANG = {"en", "ru", "any"}
 
 @dataclass
 class AethelConfig:
-    entity_types: set[str] = field(default_factory=lambda: set(DEFAULT_ENTITY_TYPES))
-    relation_types: set[str] = field(default_factory=lambda: set(DEFAULT_RELATION_TYPES))
     structure_enforce: str = "error"  # error | warn | off
     context_headers: list[str] = field(default_factory=lambda: list(DEFAULT_CONTEXT_HEADERS))
     aethel_headers: list[str] = field(default_factory=lambda: list(DEFAULT_AETHEL_HEADERS))
@@ -83,6 +78,10 @@ class AethelConfig:
     rule_files: list[str] = field(default_factory=lambda: list(DEFAULT_RULE_FILES))
     changelog_file: str = DEFAULT_CHANGELOG_FILE
     consistency_enforce: str = "warn"  # error | warn | off (workspace core vs library core)
+    knowledge_index: str = DEFAULT_KNOWLEDGE_INDEX  # the llms.txt-style index file
+    knowledge_dir: str = DEFAULT_KNOWLEDGE_DIR  # directory of atomic topic files
+    dead_link_enforce: str = "error"  # error | warn | off (index link resolves on disk)
+    orphan_enforce: str = "warn"  # error | warn | off (topic file unreachable from index)
 
 
 def _coerce_enforce(value: object, fallback: str) -> str:
@@ -117,15 +116,6 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
         # Fail open: a broken config must not silently change validation rules.
         return cfg
 
-    ontology = data.get("ontology", {})
-    if isinstance(ontology, dict):
-        ents = ontology.get("entity_types")
-        if isinstance(ents, list) and all(isinstance(v, str) for v in ents):
-            cfg.entity_types = set(ents)
-        rels = ontology.get("relation_types")
-        if isinstance(rels, list) and all(isinstance(v, str) for v in rels):
-            cfg.relation_types = set(rels)
-
     structure = data.get("structure", {})
     if isinstance(structure, dict):
         cfg.structure_enforce = _coerce_enforce(structure.get("enforce"), cfg.structure_enforce)
@@ -153,5 +143,16 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
     consistency = data.get("consistency", {})
     if isinstance(consistency, dict):
         cfg.consistency_enforce = _coerce_enforce(consistency.get("enforce"), cfg.consistency_enforce)
+
+    knowledge = data.get("knowledge", {})
+    if isinstance(knowledge, dict):
+        index_file = knowledge.get("index_file")
+        if isinstance(index_file, str):
+            cfg.knowledge_index = index_file
+        kdir = knowledge.get("dir")
+        if isinstance(kdir, str):
+            cfg.knowledge_dir = kdir
+        cfg.dead_link_enforce = _coerce_enforce(knowledge.get("dead_link_enforce"), cfg.dead_link_enforce)
+        cfg.orphan_enforce = _coerce_enforce(knowledge.get("orphan_enforce"), cfg.orphan_enforce)
 
     return cfg
