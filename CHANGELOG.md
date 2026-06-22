@@ -39,6 +39,10 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 - Polygon scenarios F (custom `aethel.toml` ontology) and G (non-destructive update).
 
 ### Changed
+- Route B step 6 in the `aethel-core` block now states that `task.md` is authored up front
+  as a complete ordered checklist derived from the plan's Proposed Changes (then executed in
+  3–5 step chunks and edited as reality dictates), rather than created and filled lazily —
+  codifying the intended plan (WHAT/WHY) vs checklist (ordered HOW) split.
 - Recipes are now discovered dynamically by `discover_recipes()` scanning
   `aethel/templates/recipes/*` instead of a hard-coded `RECIPES` dict + argparse `choices`.
   A recipe is any sub-directory with an `AETHEL_RECIPE_ADDENDUM.md` whose managed-block marker

@@ -22,7 +22,7 @@ When the user issues a prompt, silently categorize the work into one of three ro
      `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage plan`
      Correct any errors before requesting user approval.
   5. Halt and wait for user approval before modifying code.
-  6. Upon approval, create `task.md` and begin execution in 3–5 step chunks.
+  6. Upon approval, author `task.md` as a complete ordered checklist derived from the plan's Proposed Changes, then execute it in 3–5 step chunks, re-checking and editing the checklist as reality dictates.
   7. **Checklist Linting**: Once all implementation steps are finished and all tasks in `task.md` are completed, run:
      `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage checklist`
   8. **Report Linting**: After generating the walkthrough report (`walkthrough.md`), run:
