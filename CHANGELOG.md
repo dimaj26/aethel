@@ -4,6 +4,17 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased] - 2026-06-23
 ### Added
+- **Core version stamping + version-skew detection.** The managed `aethel-core` block now carries
+  a `<!-- AETHEL:CORE-VERSION X.Y.Z -->` stamp (shipped in the template, owned by `aethel update`).
+  `check_core_consistency` strips it before the structural compare, so it distinguishes a
+  hand-edited block (divergence, `[consistency] enforce`) from a merely stale one (version skew →
+  "run `aethel update`", new `[consistency] version_skew_enforce`, default `warn`/non-blocking).
+  New `aethel.CORE_VERSION` (the managed-block version, distinct from the pip package
+  `__version__`) with `markers.parse_core_version`/`strip_core_version`. Both version pairs are
+  guarded by `tests/test_version.py` (template stamp == `CORE_VERSION`; `__version__` ==
+  `pyproject [project].version`). Package + core bumped 1.0.0 → 1.1.0. Polygon scenario I extended
+  with the skew sub-case (downgrade stamp → warn; `aethel update` → clean). Unblocks the
+  version-skew messaging in the install-story and `aethel doctor` roadmap items.
 - **Per-session Route B working directory + reconcile-on-start lifecycle.** Route B artifacts
   (`implementation_plan.md` / `task.md` / `walkthrough.md`) now live in a per-session directory
   under a gitignored `.aethel/` tree (`.aethel/sessions/<run-id>/`), not at the repo root, removing

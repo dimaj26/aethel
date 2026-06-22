@@ -28,7 +28,10 @@ inline links only. Severities: `[knowledge] dead_link_enforce` / `orphan_enforce
 ## Workspace hygiene (`check_workspace_hygiene`)
 Core files present (`AETHEL.md`, `CONTEXT.md`, `.gitattributes`), knowledge dir present,
 required AETHEL/CONTEXT headers, no `LEGACY_*` or `AETHEL_ONBOARDING.md` left behind, and
-core-consistency (see [core consistency](core-consistency.md)).
+core-consistency (see [core consistency](core-consistency.md)). `check_core_consistency` strips
+the `AETHEL:CORE-VERSION` stamp before comparing structure, so it distinguishes a hand-edited
+block (divergence, `[consistency] enforce`) from a merely stale one (version skew → "run `aethel
+update`", `[consistency] version_skew_enforce`, default warn/non-blocking).
 
 ## Commit-time drift guards
 All three are inert outside a real commit (no repo / no HEAD / nothing staged) and share the

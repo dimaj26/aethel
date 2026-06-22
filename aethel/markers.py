@@ -25,6 +25,23 @@ def managed_block_pattern(block_id: str) -> re.Pattern[str]:
 
 _BEGIN_ID_RE = re.compile(r"<!--\s*AETHEL:MANAGED:BEGIN\s+id=(\S+?)\s*-->")
 
+# Core-version stamp: a dedicated marker line carried INSIDE the managed block (so
+# `aethel update` owns it), kept separate from the `id=` marker because
+# `parse_block_id`'s `id=(\S+?)` cannot span a space. Stripped before structural
+# block comparison so version skew and hand-editing can be told apart.
+_CORE_VERSION_RE = re.compile(r"[ \t]*<!--\s*AETHEL:CORE-VERSION\s+(\S+?)\s*-->[ \t]*\n?")
+
+
+def parse_core_version(text: str) -> str | None:
+    """Return the version from the first `AETHEL:CORE-VERSION` stamp, or None."""
+    match = _CORE_VERSION_RE.search(text)
+    return match.group(1) if match else None
+
+
+def strip_core_version(block: str) -> str:
+    """Remove the core-version stamp line so structural comparison ignores it."""
+    return _CORE_VERSION_RE.sub("", block, count=1)
+
 
 def extract_managed_block(text: str, block_id: str) -> str | None:
     match = managed_block_pattern(block_id).search(text)

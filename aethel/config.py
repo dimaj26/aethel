@@ -81,7 +81,8 @@ class AethelConfig:
     require_changelog: str = "warn"  # error | warn | off (rule change ⇒ changelog at commit time)
     rule_files: list[str] = field(default_factory=lambda: list(DEFAULT_RULE_FILES))
     changelog_file: str = DEFAULT_CHANGELOG_FILE
-    consistency_enforce: str = "warn"  # error | warn | off (workspace core vs library core)
+    consistency_enforce: str = "warn"  # error | warn | off (workspace core block structure vs library)
+    version_skew_enforce: str = "warn"  # error | warn | off (workspace core version older than library)
     knowledge_index: str = DEFAULT_KNOWLEDGE_INDEX  # the llms.txt-style index file
     knowledge_dir: str = DEFAULT_KNOWLEDGE_DIR  # directory of atomic topic files
     dead_link_enforce: str = "error"  # error | warn | off (index link resolves on disk)
@@ -150,6 +151,7 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
     consistency = data.get("consistency", {})
     if isinstance(consistency, dict):
         cfg.consistency_enforce = _coerce_enforce(consistency.get("enforce"), cfg.consistency_enforce)
+        cfg.version_skew_enforce = _coerce_enforce(consistency.get("version_skew_enforce"), cfg.version_skew_enforce)
 
     knowledge = data.get("knowledge", {})
     if isinstance(knowledge, dict):

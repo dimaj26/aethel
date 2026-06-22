@@ -5,8 +5,14 @@ import re
 import subprocess
 import sys
 
+from aethel import CORE_VERSION
 from aethel.config import AethelConfig, load_config
-from aethel.markers import extract_managed_block, normalize_block
+from aethel.markers import (
+    extract_managed_block,
+    normalize_block,
+    parse_core_version,
+    strip_core_version,
+)
 from aethel.session import current_session_dir
 
 # ANSI Color Codes
@@ -635,6 +641,12 @@ def _installed_core_block() -> str | None:
         return None
 
 
+def _installed_core_version() -> str:
+    """The core version the installed library ships (authoritative; the template
+    stamp is asserted equal to it by a test)."""
+    return CORE_VERSION
+
+
 def _is_aethel_source_repo(workspace_path: str) -> bool:
     """True when the workspace IS the Aethel library source (it *defines* the
     core, so it cannot meaningfully 'diverge' from itself)."""
@@ -648,10 +660,20 @@ def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None)
     (custom rules below the block, recipes, aethel.toml) — that asymmetry is
     allowed; the core is the invariant subset, not a copy of the workspace.
 
-    Returns True (non-blocking) unless the block diverges and enforce=='error'.
+    The block carries a version stamp (`AETHEL:CORE-VERSION`). It is stripped
+    before the structural comparison so two failure modes are told apart:
+    * **structure diverges** ⇒ the block was hand-edited / forked — severity
+      `[consistency] enforce`;
+    * **structure matches, version differs** (incl. an unstamped older workspace)
+      ⇒ the workspace is merely STALE — "run `aethel update`" at severity
+      `[consistency] version_skew_enforce` (default warn, non-blocking).
+
+    Returns True (non-blocking) unless a problem is found at its 'error' severity.
     """
     cfg = _resolve_cfg(workspace_path, cfg)
-    if cfg.consistency_enforce == "off" or _is_aethel_source_repo(workspace_path):
+    if _is_aethel_source_repo(workspace_path):
+        return True
+    if cfg.consistency_enforce == "off" and cfg.version_skew_enforce == "off":
         return True
     aethel_path = os.path.join(workspace_path, "AETHEL.md")
     lib_core = _installed_core_block()
@@ -664,9 +686,32 @@ def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None)
     except OSError:
         return True
 
-    if ws_core is not None and normalize_block(ws_core) == normalize_block(lib_core):
+    structurally_equal = (
+        ws_core is not None
+        and normalize_block(strip_core_version(ws_core)) == normalize_block(strip_core_version(lib_core))
+    )
+    if structurally_equal:
+        assert ws_core is not None  # implied by structurally_equal
+        ws_version = parse_core_version(ws_core)
+        lib_version = _installed_core_version()
+        if ws_version == lib_version:
+            return True  # structure + version match: fully consistent
+        print("--- Running Core Consistency Validation ---")
+        msg = (
+            f"Core version skew: this workspace's managed core is version "
+            f"{ws_version or '(unstamped)'} but the installed Aethel library ships core "
+            f"{lib_version}. The block is otherwise unchanged — run `aethel update` to re-sync it."
+        )
+        if cfg.version_skew_enforce == "error":
+            print_error(msg)
+            return False
+        if cfg.version_skew_enforce == "warn":
+            print_warning(msg)
         return True
 
+    # Structure diverges (or no managed block): hand-edited / forked.
+    if cfg.consistency_enforce == "off":
+        return True
     print("--- Running Core Consistency Validation ---")
     if ws_core is None:
         msg = (

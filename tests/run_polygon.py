@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import glob
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -424,9 +425,37 @@ def test_scenario_i(temp_dir):
         f.write('[consistency]\nenforce = "error"\n')
     run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
 
-    # Restore the core block and EXTEND below it (the allowed asymmetry): consistent again.
+    # Restore the core block and EXTEND below it (the allowed asymmetry): consistent again
+    # even while enforce=error is still configured.
     with open(aethel_file, "w", encoding="utf-8") as f:
         f.write(original + "\n- [G-321]: project rule below the core block.\n")
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    # Drop the enforce=error override so the skew sub-case runs at defaults.
+    os.remove(os.path.join(scen_dir, "aethel.toml"))
+
+    # Version skew: downgrade ONLY the core-version stamp (structure intact). This is a
+    # stale workspace, not a fork -> warn "run aethel update", but DO NOT block.
+    with open(aethel_file, "r", encoding="utf-8") as f:
+        stamped = f.read()
+    assert "AETHEL:CORE-VERSION" in stamped, "deployed core block is missing the version stamp"
+    skewed = re.sub(r"(AETHEL:CORE-VERSION)\s+\S+", r"\1 0.0.1", stamped, count=1)
+    assert skewed != stamped, "test setup: version stamp not found to downgrade"
+    with open(aethel_file, "w", encoding="utf-8") as f:
+        f.write(skewed)
+    res = run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+    assert "version skew" in res.stdout.lower(), "version skew not reported"
+    assert "aethel update" in res.stdout.lower(), "skew message should point to `aethel update`"
+
+    # Promoting version_skew_enforce to error makes the same skew block.
+    with open(os.path.join(scen_dir, "aethel.toml"), "w", encoding="utf-8") as f:
+        f.write('[consistency]\nversion_skew_enforce = "error"\n')
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+
+    # `aethel update` refreshes the stamp back to the library core version -> clean again.
+    os.remove(os.path.join(scen_dir, "aethel.toml"))
+    run_cmd([sys.executable, "-m", "aethel.cli", "update"], scen_dir)
+    os.remove(os.path.join(scen_dir, "AETHEL_ONBOARDING.md"))
     run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
 
     print(f"{GREEN}[PASS] Scenario I completed successfully.{RESET}")

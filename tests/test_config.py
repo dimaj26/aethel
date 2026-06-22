@@ -141,6 +141,29 @@ def test_changelog_sync_overrides(tmp_path):
     assert cfg.changelog_file == "HISTORY.md"
 
 
+def test_consistency_defaults(tmp_path):
+    cfg = load_config(str(tmp_path))
+    assert cfg.consistency_enforce == "warn"
+    assert cfg.version_skew_enforce == "warn"
+
+
+def test_version_skew_enforce_override(tmp_path):
+    (tmp_path / "aethel.toml").write_text(
+        '[consistency]\nenforce = "error"\nversion_skew_enforce = "error"\n',
+        encoding="utf-8",
+    )
+    cfg = load_config(str(tmp_path))
+    assert cfg.consistency_enforce == "error"
+    assert cfg.version_skew_enforce == "error"
+
+
+def test_invalid_version_skew_enforce_falls_back(tmp_path):
+    (tmp_path / "aethel.toml").write_text(
+        '[consistency]\nversion_skew_enforce = "nonsense"\n', encoding="utf-8",
+    )
+    assert load_config(str(tmp_path)).version_skew_enforce == "warn"  # invalid -> default
+
+
 def test_malformed_toml_is_safe(tmp_path):
     (tmp_path / "aethel.toml").write_text("this is = = not valid toml [[", encoding="utf-8")
     cfg = load_config(str(tmp_path))

@@ -155,6 +155,35 @@ def test_core_consistency_flags_missing_block(tmp_path):
     assert check_core_consistency(str(tmp_path), AethelConfig(consistency_enforce="error")) is False
 
 
+def test_core_consistency_reports_version_skew(tmp_path, capsys):
+    """A workspace whose core block matches structurally but carries an older (or
+    absent) version stamp is *stale*, not forked: warn 'run aethel update', do not
+    block, and do not report structural divergence."""
+    from aethel.markers import parse_core_version, strip_core_version
+    core = _installed_core_block()
+    assert core is not None
+    lib_version = parse_core_version(core)
+    assert lib_version is not None, "library core block must carry a version stamp"
+
+    # Downgrade the stamp to an older version; structure is otherwise identical.
+    stale = core.replace(lib_version, "0.0.1", 1)
+    assert parse_core_version(stale) == "0.0.1"
+    assert strip_core_version(stale) == strip_core_version(core)  # same structure
+    (tmp_path / "AETHEL.md").write_text(stale + "\n", encoding="utf-8")
+
+    # Skew is non-blocking even when structural consistency is 'error'...
+    ok = check_core_consistency(str(tmp_path), AethelConfig(consistency_enforce="error"))
+    out = capsys.readouterr().out
+    assert ok is True, "version skew must not block (it is an upgrade nudge)"
+    assert "update" in out.lower(), "skew message should tell the user to run aethel update"
+    assert "diverge" not in out.lower(), "skew must not be reported as divergence"
+
+    # ...but can be promoted to a hard error via version_skew_enforce.
+    assert check_core_consistency(
+        str(tmp_path), AethelConfig(version_skew_enforce="error")
+    ) is False
+
+
 def _write_index(tmp_path, body):
     (tmp_path / "CONTEXT.md").write_text(body, encoding="utf-8")
 
