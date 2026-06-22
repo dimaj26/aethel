@@ -52,7 +52,28 @@ def test_invalid_values_fall_back_to_defaults(tmp_path):
     )
     cfg = load_config(str(tmp_path))
     assert cfg.structure_enforce == "error"  # invalid -> default
-    assert cfg.artifact_lang == "en"  # invalid -> default
+    assert cfg.artifact_lang == "any"  # invalid -> default
+
+
+def test_changelog_sync_defaults(tmp_path):
+    cfg = load_config(str(tmp_path))
+    assert cfg.require_changelog == "warn"
+    assert cfg.rule_files == ["AETHEL.md"]
+    assert cfg.changelog_file == "CHANGELOG.md"
+
+
+def test_changelog_sync_overrides(tmp_path):
+    (tmp_path / "aethel.toml").write_text(
+        '[sync]\n'
+        'require_changelog = "error"\n'
+        'rule_files = ["AETHEL.md", "docs/RULES.md"]\n'
+        'changelog_file = "HISTORY.md"\n',
+        encoding="utf-8",
+    )
+    cfg = load_config(str(tmp_path))
+    assert cfg.require_changelog == "error"
+    assert cfg.rule_files == ["AETHEL.md", "docs/RULES.md"]
+    assert cfg.changelog_file == "HISTORY.md"
 
 
 def test_malformed_toml_is_safe(tmp_path):

@@ -10,7 +10,7 @@ This is the compact technical index for the Aethel system. Keep it under 150 lin
 ├── .gitattributes         # Masking memory.json from git diffs (memory.json binary)
 ├── AETHEL.md              # AI Orchestrator & Development rules (Human-edited, canonical)
 ├── GEMINI.md / CLAUDE.md  # Redirect stubs pointing at AETHEL.md
-├── aethel.toml            # Optional linter policy (ontology / structure / language)
+├── aethel.toml            # Optional linter policy (ontology / structure / language / sync)
 ├── CONTEXT.md             # Technical context core (Under 150 lines, Human-edited)
 ├── CHANGELOG.md           # Project history (Human-edited)
 ├── memory.json            # AI Knowledge Graph (MCP-generated JSON Lines)

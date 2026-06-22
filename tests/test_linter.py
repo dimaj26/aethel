@@ -1,11 +1,13 @@
 from aethel.config import AethelConfig
 from aethel.linter import (
     _artifact_language_warning,
+    _changelog_drift,
     _check_required_headers,
     _classify_staged,
     _has_cycle,
     _heading_present,
     _installed_core_block,
+    check_changelog_sync,
     check_core_consistency,
     check_memory_integrity,
     check_plan_file,
@@ -124,6 +126,28 @@ def test_check_spec_sync_disabled_is_noop(tmp_path):
 def test_check_spec_sync_skip_env(tmp_path, monkeypatch):
     monkeypatch.setenv("AETHEL_SKIP_SYNC", "1")
     assert check_spec_sync(str(tmp_path), AethelConfig(sync_enforce="error")) is True
+
+
+def test_changelog_drift():
+    cfg = AethelConfig()
+    assert _changelog_drift(["AETHEL.md"], cfg) is True  # rule edited, no changelog -> drift
+    assert _changelog_drift(["AETHEL.md", "CHANGELOG.md"], cfg) is False  # paired
+    assert _changelog_drift(["CHANGELOG.md"], cfg) is False  # changelog only
+    assert _changelog_drift(["src/module.py"], cfg) is False  # non-rule change
+    # rule_files matching is path-aware via fnmatch as well as basename.
+    cfg2 = AethelConfig(rule_files=["docs/RULES.md"])
+    assert _changelog_drift(["docs/RULES.md"], cfg2) is True
+    assert _changelog_drift(["docs/RULES.md", "CHANGELOG.md"], cfg2) is False
+
+
+def test_check_changelog_sync_disabled_is_noop(tmp_path):
+    # 'off' short-circuits before any git inspection; tmp_path need not be a repo.
+    assert check_changelog_sync(str(tmp_path), AethelConfig(require_changelog="off")) is True
+
+
+def test_check_changelog_sync_skip_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("AETHEL_SKIP_SYNC", "1")
+    assert check_changelog_sync(str(tmp_path), AethelConfig(require_changelog="error")) is True
 
 
 def test_core_consistency_matches_and_allows_extension(tmp_path):

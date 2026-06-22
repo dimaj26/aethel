@@ -13,6 +13,13 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
   (`memory.json`/`CONTEXT.md`/`AETHEL.md`). Inert outside a real commit (no repo / no HEAD /
   nothing staged); escape hatch `AETHEL_SKIP_SYNC=1`; also runnable as `--stage sync`. Route C in
   `AETHEL.md` is reworded as a mandatory post-step that this check enforces. Polygon scenario H.
+- Changelog-sync drift guard (`check_changelog_sync`): a scoped sibling of the spec-sync guard that
+  pairs rule changes with the release log. When a `[sync] rule_files` path (default `AETHEL.md`) is
+  staged but `[sync] changelog_file` (default `CHANGELOG.md`) is not, the linter reminds
+  (default `require_changelog = "warn"`) or blocks (`"error"`). Closes the gap where editing a
+  governance rule and staging only `AETHEL.md` satisfied spec-sync while the changelog silently
+  lagged. Same inert-outside-a-commit behavior and `AETHEL_SKIP_SYNC=1` escape hatch; runs in the
+  default lint and `--stage sync`. Polygon scenario J.
 - Core Consistency Contract (CC-1): a deployed workspace may EXTEND the Aethel core but must not
   contradict it (workspace ⊇ core; the core is not a copy of the workspace). Enforced by
   `check_core_consistency`, which compares the workspace's `aethel-core` managed block against the

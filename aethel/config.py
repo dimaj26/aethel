@@ -53,6 +53,13 @@ DEFAULT_SYNC_IGNORED = [
 ]
 DEFAULT_SPEC_FILES = ["memory.json", "CONTEXT.md", "AETHEL.md"]
 
+# Rule-change ⇒ changelog pairing. When a governance/rule file is staged, the
+# human-readable history (CHANGELOG.md) is expected to move with it, so the
+# release log does not silently lag behind a rule edit. Like the spec-sync guard
+# this only checks the *pairing*, never what actually changed.
+DEFAULT_RULE_FILES = ["AETHEL.md"]
+DEFAULT_CHANGELOG_FILE = "CHANGELOG.md"
+
 _VALID_ENFORCE = {"error", "warn", "off"}
 _VALID_LANG = {"en", "ru", "any"}
 
@@ -72,6 +79,9 @@ class AethelConfig:
     sync_watched: list[str] = field(default_factory=lambda: list(DEFAULT_SYNC_WATCHED))
     sync_ignored: list[str] = field(default_factory=lambda: list(DEFAULT_SYNC_IGNORED))
     spec_files: list[str] = field(default_factory=lambda: list(DEFAULT_SPEC_FILES))
+    require_changelog: str = "warn"  # error | warn | off (rule change ⇒ changelog at commit time)
+    rule_files: list[str] = field(default_factory=lambda: list(DEFAULT_RULE_FILES))
+    changelog_file: str = DEFAULT_CHANGELOG_FILE
     consistency_enforce: str = "warn"  # error | warn | off (workspace core vs library core)
 
 
@@ -134,6 +144,11 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
         cfg.sync_watched = _coerce_str_list(sync.get("watched"), cfg.sync_watched)
         cfg.sync_ignored = _coerce_str_list(sync.get("ignored"), cfg.sync_ignored)
         cfg.spec_files = _coerce_str_list(sync.get("spec_files"), cfg.spec_files)
+        cfg.require_changelog = _coerce_enforce(sync.get("require_changelog"), cfg.require_changelog)
+        cfg.rule_files = _coerce_str_list(sync.get("rule_files"), cfg.rule_files)
+        changelog = sync.get("changelog_file")
+        if isinstance(changelog, str):
+            cfg.changelog_file = changelog
 
     consistency = data.get("consistency", {})
     if isinstance(consistency, dict):

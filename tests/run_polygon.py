@@ -484,6 +484,55 @@ def test_scenario_i(temp_dir):
 
     print(f"{GREEN}[PASS] Scenario I completed successfully.{RESET}")
 
+def test_scenario_j(temp_dir):
+    print_banner("Scenario J: Changelog-Sync drift guard for rule changes")
+    scen_dir = os.path.join(temp_dir, "scenario_j")
+    os.makedirs(scen_dir)
+
+    run_cmd(["git", "init"], scen_dir)
+    run_cmd(["git", "config", "user.email", "polygon@aethel.test"], scen_dir)
+    run_cmd(["git", "config", "user.name", "Polygon"], scen_dir)
+    run_cmd([sys.executable, "-m", "aethel.cli", "init"], scen_dir)
+    os.remove(os.path.join(scen_dir, "AETHEL_ONBOARDING.md"))
+
+    # Establish HEAD: the guard is intentionally inert before the first commit.
+    run_cmd(["git", "add", "-A"], scen_dir)
+    run_cmd(["git", "commit", "--no-verify", "-m", "chore: scaffold"], scen_dir)
+
+    def reset_stage():
+        run_cmd(["git", "reset", "-q"], scen_dir)
+
+    aethel_file = os.path.join(scen_dir, "AETHEL.md")
+    # Extend BELOW the managed core block so core-consistency stays green while the
+    # rule file still registers as changed.
+    with open(aethel_file, "a", encoding="utf-8") as f:
+        f.write("\n- [G-9]: project-specific rule.\n")
+
+    # 1. Rule file staged, no changelog, default 'warn' -> warning but commit not blocked.
+    run_cmd(["git", "add", "AETHEL.md"], scen_dir)
+    res = run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+    assert "Changelog drift" in res.stdout, "Changelog drift warning not emitted in warn mode"
+
+    # 2. Under 'error' the same staged set must block.
+    with open(os.path.join(scen_dir, "aethel.toml"), "w", encoding="utf-8") as f:
+        f.write('[sync]\nrequire_changelog = "error"\n')
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+
+    # 3. Pairing CHANGELOG.md with the rule change passes even under 'error'.
+    with open(os.path.join(scen_dir, "CHANGELOG.md"), "w", encoding="utf-8") as f:
+        f.write("# Changelog\n\n## [Unreleased]\n- documented the rule change\n")
+    run_cmd(["git", "add", "CHANGELOG.md"], scen_dir)
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    # 4. Escape hatch: rule-only staged under 'error' but AETHEL_SKIP_SYNC=1 bypasses.
+    reset_stage()
+    run_cmd(["git", "add", "AETHEL.md"], scen_dir)
+    skip_env = dict(ENV)
+    skip_env["AETHEL_SKIP_SYNC"] = "1"
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0, env=skip_env)
+
+    print(f"{GREEN}[PASS] Scenario J completed successfully.{RESET}")
+
 def main():
     with tempfile.TemporaryDirectory() as temp_dir:
         print(f"Using temp directory: {temp_dir}")
@@ -496,6 +545,7 @@ def main():
         test_scenario_g(temp_dir)
         test_scenario_h(temp_dir)
         test_scenario_i(temp_dir)
+        test_scenario_j(temp_dir)
 
     print(f"\n{GREEN}ALL TEST SCENARIOS PASSED SUCCESSFULLY!{RESET}\n")
 

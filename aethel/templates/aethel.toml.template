@@ -51,6 +51,12 @@ enforce = "warn"
 watched = ["*.py", "*.ts", "*.tsx", "*.js", "*.jsx", "*.go", "*.rs", "*.java", "*.sql"]
 ignored = ["*test*", "*spec*", "*.md", "memory.json", "*.lock", "*/node_modules/*"]
 spec_files = ["memory.json", "CONTEXT.md", "AETHEL.md"]
+# Rule-change ⇒ changelog pairing. When a `rule_files` path is staged, the linter
+# expects `changelog_file` to be staged too, so the release log never lags behind a
+# governance edit. Same enforce levels and AETHEL_SKIP_SYNC escape hatch as above.
+require_changelog = "warn"   # "warn" (default) | "error" (block) | "off"
+rule_files = ["AETHEL.md"]
+changelog_file = "CHANGELOG.md"
 
 [consistency]
 # Core-consistency standard: the workspace must not contradict the Aethel core.

@@ -560,6 +560,58 @@ def check_spec_sync(workspace_path: str, cfg: AethelConfig | None = None) -> boo
     return True
 
 
+def _changelog_drift(staged: list[str], cfg: AethelConfig) -> bool:
+    """Return True if a rule file is staged but the changelog is not."""
+    rule_staged = False
+    changelog_staged = False
+    for f in staged:
+        posix = f.replace("\\", "/")
+        base = os.path.basename(posix)
+        if base in cfg.rule_files or _matches_any(posix, cfg.rule_files):
+            rule_staged = True
+        if base == cfg.changelog_file or _matches_any(posix, [cfg.changelog_file]):
+            changelog_staged = True
+    return rule_staged and not changelog_staged
+
+
+def check_changelog_sync(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
+    """Pre-commit guard: warn/block when a rule file changes without a CHANGELOG entry.
+
+    A scoped sibling of `check_spec_sync`: the spec-sync guard treats a commit as
+    "specs updated" if ANY spec file is staged, so editing a governance rule in
+    AETHEL.md and staging only AETHEL.md passes while CHANGELOG.md silently lags.
+    This pairs rule changes with the human-readable history. Like the spec guard
+    it checks only the *pairing*, never what changed, and stays inert outside a
+    real commit. Returns True (non-blocking) unless drift is found and
+    require_changelog == 'error'.
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    if cfg.require_changelog == "off":
+        return True
+    if os.environ.get("AETHEL_SKIP_SYNC"):
+        return True
+    if not _in_git_repo(workspace_path) or not _has_head(workspace_path):
+        return True
+    staged = _staged_files(workspace_path)
+    if not staged:
+        return True
+    if not _changelog_drift(staged, cfg):
+        return True
+
+    print("--- Running Changelog-Sync Drift Validation ---")
+    msg = (
+        f"Changelog drift: a rule file ({', '.join(cfg.rule_files)}) is staged but "
+        f"{cfg.changelog_file} was not updated in this commit. Record the rule change "
+        f"in {cfg.changelog_file} (Route C), or set AETHEL_SKIP_SYNC=1 for an "
+        "intentionally history-irrelevant commit."
+    )
+    if cfg.require_changelog == "error":
+        print_error(msg)
+        return False
+    print_warning(msg)
+    return True
+
+
 def _installed_core_block() -> str | None:
     """The `aethel-core` managed block shipped by the installed Aethel library."""
     template_path = os.path.join(os.path.dirname(__file__), "templates", "AETHEL.md.template")
@@ -660,7 +712,9 @@ def main() -> None:
     elif args.stage == "report":
         errors, warnings = check_report_file(workspace, cfg)
     elif args.stage == "sync":
-        sys.exit(0 if check_spec_sync(workspace, cfg) else 1)
+        spec_ok = check_spec_sync(workspace, cfg)
+        changelog_ok = check_changelog_sync(workspace, cfg)
+        sys.exit(0 if (spec_ok and changelog_ok) else 1)
     else:
         # Parameterless run / General checks (Pre-commit hook default)
         plan_ok = check_plan_stage(workspace, cfg)
@@ -670,8 +724,9 @@ def main() -> None:
         hygiene_ok = check_workspace_hygiene(workspace, other_checks_passed=(plan_ok and memory_ok), cfg=cfg)
         print()
         sync_ok = check_spec_sync(workspace, cfg)
+        changelog_ok = check_changelog_sync(workspace, cfg)
 
-        if plan_ok and memory_ok and hygiene_ok and sync_ok:
+        if plan_ok and memory_ok and hygiene_ok and sync_ok and changelog_ok:
             print_success("All linter checks PASSED.")
             sys.exit(0)
         else:
