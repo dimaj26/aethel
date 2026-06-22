@@ -1,1 +1,3 @@
 graft aethel/templates
+recursive-exclude aethel/templates **/.ruff_cache *
+global-exclude */__pycache__/*

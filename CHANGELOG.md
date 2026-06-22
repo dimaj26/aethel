@@ -39,6 +39,17 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 - Polygon scenarios F (custom `aethel.toml` ontology) and G (non-destructive update).
 
 ### Changed
+- Recipes are now discovered dynamically by `discover_recipes()` scanning
+  `aethel/templates/recipes/*` instead of a hard-coded `RECIPES` dict + argparse `choices`.
+  A recipe is any sub-directory with an `AETHEL_RECIPE_ADDENDUM.md` whose managed-block marker
+  yields the sentinel (parsed via the shared `parse_block_id` helper); `configs` are its
+  top-level files. Adding a recipe needs no Python edit. An unknown `--recipe` is validated at
+  runtime (`exit 2`, lists discovered recipes); a malformed recipe folder (missing or
+  marker-less addendum) raises `RecipeError` (fail-fast); an empty folder warns and is skipped.
+  `_installed_recipes` is re-based on sentinel presence in `AETHEL.md` (not config-file
+  existence), and the `aethel update` legacy-rewrite path reads that sentinel from the original
+  content before rewriting. Removed the committed `templates/recipes/python/.ruff_cache/` and
+  excluded cache dirs from git and the sdist/wheel (`MANIFEST.in`). Polygon scenario A extended.
 - De-projected the library: removed the hard-coded Teñir-Too Cyrillic whitelist and Russian
   phrases from the linter, and the "respond in Russian" / Russian verdict labels from the shipped
   proposal-analysis skill. Language defaults are now neutral (`artifact_lang`/`report_lang` default

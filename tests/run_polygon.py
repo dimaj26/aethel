@@ -73,6 +73,18 @@ def test_scenario_a(temp_dir):
         ruff_content = f.read()
     assert ruff_content == "# User custom config\n", "Existing configuration file was overwritten"
 
+    # 4. Discovery hygiene: cache dirs must never be copied into the workspace.
+    assert not os.path.exists(os.path.join(scen_dir, ".ruff_cache")), \
+        ".ruff_cache leaked into the deployed workspace"
+
+    # 5. Unknown recipe is rejected at runtime (no argparse choices) and lists options.
+    res = run_cmd(
+        [sys.executable, "-m", "aethel.cli", "init", "--recipe", "zzz"],
+        scen_dir, expected_code=2,
+    )
+    assert "unknown recipe 'zzz'" in res.stdout.lower(), "Unknown recipe not reported"
+    assert "python" in res.stdout and "javascript" in res.stdout, "Discovered recipes not listed"
+
     print(f"{GREEN}[PASS] Scenario A completed successfully.{RESET}")
 
 def test_scenario_b(temp_dir):

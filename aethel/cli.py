@@ -8,6 +8,7 @@ from typing import Any
 from aethel.linter import run_linter  # noqa: F401  (kept for backward-compatible imports)
 from aethel.markers import (  # noqa: F401  (re-exported for backward-compatible imports)
     extract_managed_block,
+    parse_block_id,
     replace_managed_block,
 )
 
@@ -172,22 +173,82 @@ def ensure_gitattributes(dest_dir: str, overwrite: bool) -> None:
         copy_template("gitattributes.template", ".gitattributes", dest_dir, overwrite=overwrite)
 
 
-RECIPES: dict[str, dict[str, Any]] = {
-    "python": {"sentinel": "id=recipe-python", "configs": [".ruff.toml", "semgrep-rules.yaml"]},
-    "javascript": {"sentinel": "id=recipe-javascript", "configs": [".eslintrc.json"]},
-}
+RECIPES_DIRNAME = "recipes"
+ADDENDUM_NAME = "AETHEL_RECIPE_ADDENDUM.md"
+
+
+class RecipeError(Exception):
+    """A recipe folder is malformed (missing or marker-less addendum)."""
+
+
+def _is_cache_dir(name: str) -> bool:
+    """Directories that are build/lint caches, never recipes or config sources."""
+    return name.startswith(".") or name.endswith("_cache") or name == "__pycache__"
+
+
+def discover_recipes(base_dir: str | None = None) -> dict[str, dict[str, Any]]:
+    """Discover recipes by scanning a recipes base directory at runtime.
+
+    A recipe is a sub-directory (cache dirs excluded) containing an
+    ``AETHEL_RECIPE_ADDENDUM.md`` whose managed-block BEGIN marker yields the
+    sentinel. ``configs`` are the recipe's top-level files minus the addendum.
+    Returns ``{name: {"sentinel": "id=<id>", "configs": [...]}}`` — the same shape
+    the old hard-coded ``RECIPES`` dict had, so callers are unaffected.
+
+    Raises ``RecipeError`` when a recipe folder lacks a usable addendum (taboos
+    #5/#8: a malformed recipe is a packaging error, not a silent skip). An empty
+    folder (no addendum, no configs) is warned about and skipped.
+
+    ``base_dir`` is the single seam for tests / future relocation; it defaults to
+    the in-package ``templates/recipes`` directory.
+    """
+    if base_dir is None:
+        base_dir = os.path.join(TEMPLATES_DIR, RECIPES_DIRNAME)
+    recipes: dict[str, dict[str, Any]] = {}
+    if not os.path.isdir(base_dir):
+        return recipes
+
+    for name in sorted(os.listdir(base_dir)):
+        rdir = os.path.join(base_dir, name)
+        if not os.path.isdir(rdir) or _is_cache_dir(name):
+            continue
+
+        # Config files keep their leading dot (.ruff.toml, .eslintrc.json); only
+        # sub-directories (.ruff_cache, __pycache__) are non-configs, and the
+        # os.path.isfile filter already drops them.
+        entries = sorted(os.listdir(rdir))
+        addendum_present = ADDENDUM_NAME in entries
+        configs = [
+            e for e in entries
+            if e != ADDENDUM_NAME and os.path.isfile(os.path.join(rdir, e))
+        ]
+
+        if not addendum_present and not configs:
+            print(f"Warning: recipe folder '{name}' is empty; skipping.")
+            continue
+        if not addendum_present:
+            raise RecipeError(f"Recipe '{name}' is missing {ADDENDUM_NAME}.")
+
+        with open(os.path.join(rdir, ADDENDUM_NAME), "r", encoding="utf-8") as f:
+            block_id = parse_block_id(f.read())
+        if block_id is None:
+            raise RecipeError(
+                f"Recipe '{name}' addendum has no AETHEL:MANAGED:BEGIN id=... marker."
+            )
+
+        recipes[name] = {"sentinel": f"id={block_id}", "configs": configs}
+    return recipes
 
 
 def apply_recipe(recipe: str, dest_dir: str, force: bool) -> None:
-    recipe_src_dir = os.path.join(TEMPLATES_DIR, "recipes", recipe)
-    if not os.path.exists(recipe_src_dir):
+    meta = discover_recipes().get(recipe)
+    if meta is None:
         print(f"Error: Recipe '{recipe}' templates not found.")
         return
+    recipe_src_dir = os.path.join(TEMPLATES_DIR, RECIPES_DIRNAME, recipe)
 
     print(f"Deploying standard rules and configurations for recipe '{recipe}'...")
-    for fname in os.listdir(recipe_src_dir):
-        if fname == "AETHEL_RECIPE_ADDENDUM.md":
-            continue
+    for fname in meta["configs"]:
         src_file = os.path.join(recipe_src_dir, fname)
         dest_file = os.path.join(dest_dir, fname)
         if os.path.exists(dest_file) and not force:
@@ -205,11 +266,12 @@ def apply_recipe(recipe: str, dest_dir: str, force: bool) -> None:
 def _ensure_recipe_addendum(recipe: str, dest_dir: str) -> None:
     """Append the recipe addendum to AETHEL.md unless its managed block is
     already present (idempotent)."""
-    addendum_src = os.path.join(TEMPLATES_DIR, "recipes", recipe, "AETHEL_RECIPE_ADDENDUM.md")
+    addendum_src = os.path.join(TEMPLATES_DIR, RECIPES_DIRNAME, recipe, ADDENDUM_NAME)
     aethel_path = os.path.join(dest_dir, "AETHEL.md")
-    if not (os.path.exists(addendum_src) and os.path.exists(aethel_path)):
+    meta = discover_recipes().get(recipe)
+    if meta is None or not (os.path.exists(addendum_src) and os.path.exists(aethel_path)):
         return
-    sentinel = RECIPES[recipe]["sentinel"]
+    sentinel = meta["sentinel"]
     try:
         with open(aethel_path, "r", encoding="utf-8") as f:
             aethel_content = f.read()
@@ -224,13 +286,25 @@ def _ensure_recipe_addendum(recipe: str, dest_dir: str) -> None:
         print(f"Warning: could not append recipe guidelines: {e}")
 
 
+def _installed_recipes_from_text(aethel_content: str) -> list[str]:
+    """Recipes whose managed-block sentinel is present in the given AETHEL.md text.
+
+    Sentinel presence (not config-file existence) is the source of truth: a user
+    may drop a recipe's config file yet keep its rules, and vice versa.
+    """
+    return [
+        name for name, meta in discover_recipes().items()
+        if meta["sentinel"] in aethel_content
+    ]
+
+
 def _installed_recipes(dest_dir: str) -> list[str]:
-    """Detect which recipes a workspace already uses, by their config files."""
-    found = []
-    for recipe, meta in RECIPES.items():
-        if any(os.path.exists(os.path.join(dest_dir, c)) for c in meta["configs"]):
-            found.append(recipe)
-    return found
+    """Detect which recipes a workspace already uses, by their AETHEL.md sentinel."""
+    aethel_path = os.path.join(dest_dir, "AETHEL.md")
+    if not os.path.exists(aethel_path):
+        return []
+    with open(aethel_path, "r", encoding="utf-8") as f:
+        return _installed_recipes_from_text(f.read())
 
 
 def cmd_init(args: argparse.Namespace) -> None:
@@ -283,6 +357,11 @@ def cmd_init(args: argparse.Namespace) -> None:
     # 7. Copy stack-specific linter recipes if requested
     recipe = getattr(args, "recipe", None)
     if recipe:
+        available = discover_recipes()
+        if recipe not in available:
+            names = ", ".join(sorted(available)) or "(none found)"
+            print(f"Error: unknown recipe '{recipe}'. Available recipes: {names}")
+            sys.exit(2)
         apply_recipe(recipe, dest_dir, force=args.force)
 
     print("Aethel initialization complete. Please configure your Memory MCP server path in AETHEL_ONBOARDING.md.")
@@ -321,6 +400,9 @@ def _update_aethel_md(dest_dir: str) -> None:
 
     with open(aethel_path, "r", encoding="utf-8") as f:
         current = f.read()
+    # Capture installed recipes from the ORIGINAL content before any rewrite —
+    # a template rewrite would erase the sentinels we detect them by.
+    installed_before = _installed_recipes_from_text(current)
 
     new_core = extract_managed_block(new_template, "aethel-core")
     merged, replaced = (current, False)
@@ -336,7 +418,7 @@ def _update_aethel_md(dest_dir: str) -> None:
         with open(aethel_path, "w", encoding="utf-8") as f:
             f.write(new_template)
         print("AETHEL.md had no managed markers; rewrote from template (backup retained).")
-        for recipe in _installed_recipes(dest_dir):
+        for recipe in installed_before:
             _ensure_recipe_addendum(recipe, dest_dir)
 
 
@@ -376,7 +458,7 @@ def main() -> None:
     p_init = subparsers.add_parser("init", help="Initialize Aethel in a workspace")
     p_init.add_argument("path", nargs="?", default=".", help="Directory to initialize (default: current)")
     p_init.add_argument("-f", "--force", action="store_true", help="Force overwrite of existing files")
-    p_init.add_argument("-r", "--recipe", choices=["python", "javascript"], help="Deploy standard linter recipes/configs for the chosen stack")
+    p_init.add_argument("-r", "--recipe", help="Deploy standard linter recipes/configs for the chosen stack (discovered from templates/recipes)")
     p_init.set_defaults(func=cmd_init)
 
     # lint subcommand

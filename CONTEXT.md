@@ -15,6 +15,7 @@ This is the compact technical index for the Aethel system. Keep it under 150 lin
 ├── CHANGELOG.md           # Project history (Human-edited)
 ├── memory.json            # AI Knowledge Graph (MCP-generated JSON Lines)
 ├── aethel/                # CLI package: cli.py, linter.py, config.py, templates/
+│                          #   recipes discovered at runtime from templates/recipes/* (no hard-coded list)
 └── prompt_linter.py       # Local CLI integrity linter (wrapper around aethel.linter)
 ```
 

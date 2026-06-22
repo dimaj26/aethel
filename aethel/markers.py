@@ -23,9 +23,22 @@ def managed_block_pattern(block_id: str) -> re.Pattern[str]:
     )
 
 
+_BEGIN_ID_RE = re.compile(r"<!--\s*AETHEL:MANAGED:BEGIN\s+id=(\S+?)\s*-->")
+
+
 def extract_managed_block(text: str, block_id: str) -> str | None:
     match = managed_block_pattern(block_id).search(text)
     return match.group(0) if match else None
+
+
+def parse_block_id(text: str) -> str | None:
+    """Return the id of the first managed-block BEGIN marker in text, or None.
+
+    Single source of truth for the marker grammar, shared by recipe discovery so
+    it never re-implements the `AETHEL:MANAGED:BEGIN id=<id>` format.
+    """
+    match = _BEGIN_ID_RE.search(text)
+    return match.group(1) if match else None
 
 
 def replace_managed_block(content: str, new_block: str, block_id: str) -> tuple[str, bool]:
