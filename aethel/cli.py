@@ -5,7 +5,12 @@ import shutil
 import sys
 from typing import Any
 
-from aethel.linter import run_linter  # noqa: F401  (kept for backward-compatible imports)
+from aethel import session
+from aethel.config import load_config
+from aethel.linter import (
+    check_report_file,
+    run_linter,  # noqa: F401  (kept for backward-compatible imports)
+)
 from aethel.markers import (  # noqa: F401  (re-exported for backward-compatible imports)
     extract_managed_block,
     parse_block_id,
@@ -178,6 +183,36 @@ def ensure_gitattributes(dest_dir: str, overwrite: bool) -> None:
         copy_template("gitattributes.template", ".gitattributes", dest_dir, overwrite=overwrite)
 
 
+GITIGNORE_AETHEL_LINE = ".aethel/"
+
+
+def ensure_aethel_gitignored(dest_dir: str) -> None:
+    """Ensure `.gitignore` ignores the per-session `.aethel/` tree.
+
+    Idempotent (like `ensure_gitattributes`): appends the line to an existing
+    `.gitignore` only if absent, creating the file when missing. The whole
+    session tree is local scratch — never committed."""
+    gitignore_path = os.path.join(dest_dir, ".gitignore")
+    try:
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            lines = {ln.strip().rstrip("/") for ln in content.splitlines()}
+            if ".aethel" in lines:
+                print("Skipping .gitignore: '.aethel/' already present.")
+                return
+            sep = "" if content.endswith("\n") or content == "" else "\n"
+            with open(gitignore_path, "a", encoding="utf-8") as f:
+                f.write(f"{sep}\n# Per-session Aethel working dir (local scratch)\n{GITIGNORE_AETHEL_LINE}\n")
+            print("Appended '.aethel/' to existing .gitignore")
+        else:
+            with open(gitignore_path, "w", encoding="utf-8") as f:
+                f.write(f"# Per-session Aethel working dir (local scratch)\n{GITIGNORE_AETHEL_LINE}\n")
+            print("Created .gitignore with '.aethel/'")
+    except Exception as e:
+        print(f"Warning: could not check/append to .gitignore: {e}")
+
+
 RECIPES_DIRNAME = "recipes"
 ADDENDUM_NAME = "AETHEL_RECIPE_ADDENDUM.md"
 
@@ -320,6 +355,10 @@ def cmd_init(args: argparse.Namespace) -> None:
     # 1. Handle .gitattributes non-destructively
     ensure_gitattributes(dest_dir, overwrite=args.force)
 
+    # 1b. Ignore the per-session `.aethel/` working-dir tree (sessions begin with
+    # `aethel start`, not at init).
+    ensure_aethel_gitignored(dest_dir)
+
     # 2. Rename existing non-Aethel GEMINI.md or CLAUDE.md files to LEGACY_* to preserve them
     for fname, signature in [("GEMINI.md", "Aethel"), ("CLAUDE.md", "Aethel")]:
         fpath = os.path.join(dest_dir, fname)
@@ -435,6 +474,9 @@ def cmd_update(args: argparse.Namespace) -> None:
     # 1. Handle .gitattributes (append if exists)
     ensure_gitattributes(dest_dir, overwrite=True)
 
+    # 1b. Ensure the per-session `.aethel/` tree is gitignored (idempotent).
+    ensure_aethel_gitignored(dest_dir)
+
     # 2. Merge .agents plugin (non-destructive: keeps user-added files)
     merge_template_dir(".agents", ".agents", dest_dir)
 
@@ -457,6 +499,50 @@ def cmd_update(args: argparse.Namespace) -> None:
     print("Central structures successfully updated.")
 
 
+def cmd_start(args: argparse.Namespace) -> None:
+    """Open a NEW Route B session, reconciling the previous one on start.
+
+    A validated previous session is archived under `.aethel/archive/<id>/`; an
+    interrupted (un-`done`) one under `.aethel/archive/_incomplete/<id>/`."""
+    dest_dir = os.path.abspath(args.path)
+    cfg = load_config(dest_dir)
+    moved = session.reconcile(dest_dir, cfg)
+    if moved:
+        rel = os.path.relpath(moved, dest_dir)
+        print(f"Reconciled previous session -> {rel}")
+    session_dir = session.start_session(dest_dir, args.slug, cfg)
+    rel_session = os.path.relpath(session_dir, dest_dir)
+    print(f"Opened session: {rel_session}")
+    print("Author implementation_plan.md / task.md / walkthrough.md inside this directory.")
+
+
+def cmd_done(args: argparse.Namespace) -> None:
+    """Final Route B step: re-validate the active session's report and mark it done.
+
+    Re-runs `check_report_file` against the active session; on success writes
+    `status=validated` to the manifest, on failure refuses (exit 1, session stays
+    `active`). No active session is an error."""
+    dest_dir = os.path.abspath(args.path)
+    cfg = load_config(dest_dir)
+    session_dir = session.current_session_dir(dest_dir, cfg)
+    if session_dir is None:
+        print("Error: no active Aethel session. Run `aethel start` to open one.")
+        sys.exit(1)
+
+    errors, warnings = check_report_file(dest_dir, cfg)
+    for w in warnings:
+        print(f"Warning: {w}")
+    if errors:
+        print("Cannot mark session done — walkthrough.md is missing or malformed:")
+        for e in errors:
+            print(f"  - {e}")
+        print("Author a valid session report, then re-run `aethel done`. Session left active.")
+        sys.exit(1)
+
+    session.mark_validated(dest_dir, cfg)
+    print(f"Session validated: {os.path.relpath(session_dir, dest_dir)}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Aethel: AI Context & Memory CLI Management Utility")
     subparsers = parser.add_subparsers(dest="command", help="Commands to run")
@@ -477,6 +563,17 @@ def main() -> None:
     p_update = subparsers.add_parser("update", help="Update Aethel core files & plugins to latest version")
     p_update.add_argument("path", nargs="?", default=".", help="Workspace path to update (default: current)")
     p_update.set_defaults(func=cmd_update)
+
+    # start subcommand: open a new Route B session (reconciles the previous one)
+    p_start = subparsers.add_parser("start", help="Open a new Route B session under .aethel/ (reconciles the previous one)")
+    p_start.add_argument("slug", nargs="?", default=None, help="Optional slug for the run-id (sanitized to kebab-case)")
+    p_start.add_argument("--path", default=".", help="Workspace path (default: current)")
+    p_start.set_defaults(func=cmd_start)
+
+    # done subcommand: re-validate the active session report and mark it validated
+    p_done = subparsers.add_parser("done", help="Re-validate the active session's walkthrough.md and mark it validated")
+    p_done.add_argument("--path", default=".", help="Workspace path (default: current)")
+    p_done.set_defaults(func=cmd_done)
 
     args = parser.parse_args()
     if not args.command:

@@ -7,6 +7,7 @@ import sys
 
 from aethel.config import AethelConfig, load_config
 from aethel.markers import extract_managed_block, normalize_block
+from aethel.session import current_session_dir
 
 # ANSI Color Codes
 GREEN = "\033[92m"
@@ -32,6 +33,15 @@ def print_error(msg: str) -> None:
 
 def _resolve_cfg(workspace_path: str, cfg: AethelConfig | None) -> AethelConfig:
     return cfg if cfg is not None else load_config(workspace_path)
+
+
+def _artifact_base(workspace_path: str, cfg: AethelConfig) -> str:
+    """The directory Route B artifacts (plan/task/walkthrough) live in.
+
+    Resolves to the active session dir when ``.aethel/CURRENT`` points at one,
+    else the workspace root. This keeps workspaces/tests that never call
+    ``aethel start`` behaving exactly as before (root-fallback)."""
+    return current_session_dir(workspace_path, cfg) or workspace_path
 
 
 def _heading_present(content: str, keyword: str) -> bool:
@@ -73,7 +83,7 @@ def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tup
     cfg = _resolve_cfg(workspace_path, cfg)
     errors: list[str] = []
     warnings: list[str] = []
-    plan_path = os.path.join(workspace_path, "implementation_plan.md")
+    plan_path = os.path.join(_artifact_base(workspace_path, cfg), "implementation_plan.md")
 
     if not os.path.exists(plan_path):
         return [f"Implementation plan file '{plan_path}' not found."], []
@@ -100,7 +110,7 @@ def check_checklist_file(workspace_path: str, cfg: AethelConfig | None = None) -
     cfg = _resolve_cfg(workspace_path, cfg)
     errors: list[str] = []
     warnings: list[str] = []
-    task_path = os.path.join(workspace_path, "task.md")
+    task_path = os.path.join(_artifact_base(workspace_path, cfg), "task.md")
 
     if not os.path.exists(task_path):
         return [f"Task checklist file '{task_path}' not found."], []
@@ -141,7 +151,7 @@ def check_report_file(workspace_path: str, cfg: AethelConfig | None = None) -> t
     cfg = _resolve_cfg(workspace_path, cfg)
     errors: list[str] = []
     warnings: list[str] = []
-    walkthrough_path = os.path.join(workspace_path, "walkthrough.md")
+    walkthrough_path = os.path.join(_artifact_base(workspace_path, cfg), "walkthrough.md")
 
     if not os.path.exists(walkthrough_path):
         return [f"Walkthrough report file '{walkthrough_path}' not found."], []
@@ -167,8 +177,9 @@ def check_plan_stage(workspace_path: str, cfg: AethelConfig | None = None) -> bo
     """Validates plan and task formats if they exist."""
     cfg = _resolve_cfg(workspace_path, cfg)
     print("--- Running Plan Stage Validation ---")
-    plan_path = os.path.join(workspace_path, "implementation_plan.md")
-    task_path = os.path.join(workspace_path, "task.md")
+    base = _artifact_base(workspace_path, cfg)
+    plan_path = os.path.join(base, "implementation_plan.md")
+    task_path = os.path.join(base, "task.md")
 
     plan_ok = True
     if os.path.exists(plan_path):
@@ -569,12 +580,14 @@ def check_walkthrough_sync(workspace_path: str, cfg: AethelConfig | None = None)
     """Pre-commit guard: require walkthrough.md when a Route B task commits code.
 
     A sibling of `check_spec_sync` / `check_changelog_sync`. A Route B task is
-    signalled by a `task.md` in the workspace; when such a task stages CODE for a
-    commit, a session report (`walkthrough.md`) must exist and be well-formed.
-    Like the other guards it is inert outside a real commit (no repo / no HEAD /
-    nothing staged), honors `AETHEL_SKIP_SYNC`, and checks only at the configured
-    severity. Returns True (non-blocking) unless drift is found and
-    require_walkthrough == 'error'.
+    signalled by a `task.md` in the artifact base (the active session dir if
+    `.aethel/CURRENT` resolves, else the workspace root); when such a task stages
+    CODE for a commit, the base's session report (`walkthrough.md`) must exist and
+    be well-formed. Like the other guards it is inert outside a real commit (no
+    repo / no HEAD / nothing staged), honors `AETHEL_SKIP_SYNC`, and checks only at
+    the configured severity. It stays PURE: it never writes the session manifest
+    (marking a session done is `aethel done`'s job). Returns True (non-blocking)
+    unless drift is found and require_walkthrough == 'error'.
     """
     cfg = _resolve_cfg(workspace_path, cfg)
     if cfg.require_walkthrough == "off":
@@ -589,8 +602,9 @@ def check_walkthrough_sync(workspace_path: str, cfg: AethelConfig | None = None)
     code_changed, _spec_changed = _classify_staged(staged, cfg)
     if not code_changed:
         return True
-    # Route B signal: an execution checklist (task.md) is present.
-    if not os.path.exists(os.path.join(workspace_path, "task.md")):
+    # Route B signal: an execution checklist (task.md) is present in the artifact
+    # base (the active session dir if one is open, else the workspace root).
+    if not os.path.exists(os.path.join(_artifact_base(workspace_path, cfg), "task.md")):
         return True
 
     print("--- Running Walkthrough-Report Drift Validation ---")

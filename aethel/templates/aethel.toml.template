@@ -36,6 +36,14 @@ require_walkthrough = "error"   # "error" (default, block) | "warn" | "off"
 sections = ["Summary", "Changes made", "What was tested", "Validation results"]
 # Tip: set report language under [language] report_lang = "en" | "ru" | "any".
 
+[session]
+# Per-session Route B working directory. `aethel start` opens a fresh session under
+# `<aethel_dir>/sessions/<run-id>/` (where plan/task/walkthrough live) and reconciles the
+# previous one into `<aethel_dir>/archive/<id>/` (validated, via `aethel done`) or
+# `<aethel_dir>/archive/_incomplete/<id>/` (interrupted). The whole tree is gitignored. When no
+# session is open the linter falls back to the workspace root (backward-compatible).
+aethel_dir = ".aethel"
+
 [language]
 # Optional language policy for generated artifacts. Defaults to "any" (no check) so
 # the library ships no language opinion; set a value to enforce one in this project.

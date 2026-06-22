@@ -16,6 +16,7 @@ topic file; design decisions are append-only ADRs under `knowledge/decisions/`.
 
 ## Tooling & Rules
 - [Linter checks](knowledge/linter-checks.md) — every check `aethel.linter` runs and its stage wiring.
+- [Session lifecycle](knowledge/session-lifecycle.md) — per-session `.aethel/` working dir: start, reconcile, archive, `aethel done`.
 - [Core consistency (CC-1)](knowledge/core-consistency.md) — the directional core ⊇ workspace contract.
 - [Recipe discovery](knowledge/recipes.md) — runtime discovery of stack-specific config recipes.
 

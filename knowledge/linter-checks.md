@@ -9,6 +9,9 @@ description: The checks aethel.linter runs and how they are wired into stages.
 `aethel.toml`. The pre-commit hook runs the parameterless default; `--stage` selects one.
 
 ## Artifact checks
+All artifact checks read from the **artifact base** — `_artifact_base(workspace, cfg)` resolves to
+the active session dir when `.aethel/CURRENT` exists, else the workspace root (backward-compatible;
+see [session lifecycle](session-lifecycle.md)).
 - `check_plan_file` — `implementation_plan.md` has the required H2s (User Review Required,
   Open Questions, Proposed Changes, Verification Plan) + optional language policy.
 - `check_checklist_file` — `task.md` items are all complete and the last item runs the linter.
@@ -33,10 +36,12 @@ All three are inert outside a real commit (no repo / no HEAD / nothing staged) a
 - `check_spec_sync` — code staged without a spec file (`CONTEXT.md` / `AETHEL.md` /
   `knowledge/*`) warns or blocks (Route C).
 - `check_changelog_sync` — a staged rule file (`AETHEL.md`) without `CHANGELOG.md` warns/blocks.
-- `check_walkthrough_sync` — when a Route B task is active (`task.md` present) AND the commit
-  stages code, the session report `walkthrough.md` must exist and carry the required sections
-  (`Summary` / `Changes made` / `What was tested` / `Validation results`, from
+- `check_walkthrough_sync` — when a Route B task is active (`task.md` present in the artifact base)
+  AND the commit stages code, the base's session report `walkthrough.md` must exist and carry the
+  required sections (`Summary` / `Changes made` / `What was tested` / `Validation results`, from
   `[report] sections`); missing/malformed → `[report] require_walkthrough` (default `error`).
-  `walkthrough.md` is a per-session local artifact (gitignored). Report language is governed by
-  `[language] report_lang` (warn-level); structure validation lives in `check_report_file`
-  (also reachable via `--stage report`).
+  `walkthrough.md` is a per-session local artifact (gitignored). The guard stays **PURE** — it
+  never writes the session manifest; marking a session done is `aethel done`'s job (see
+  [session lifecycle](session-lifecycle.md)). Report language is governed by `[language]
+  report_lang` (warn-level); structure validation lives in `check_report_file` (also reachable via
+  `--stage report`).

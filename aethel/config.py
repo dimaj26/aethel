@@ -88,6 +88,7 @@ class AethelConfig:
     orphan_enforce: str = "warn"  # error | warn | off (topic file unreachable from index)
     require_walkthrough: str = "error"  # error | warn | off (commit-time Route-B report guard)
     report_sections: list[str] = field(default_factory=lambda: list(DEFAULT_REPORT_SECTIONS))
+    aethel_dir: str = ".aethel"  # gitignored root of the per-session working-dir tree
 
 
 def _coerce_enforce(value: object, fallback: str) -> str:
@@ -165,5 +166,11 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
     if isinstance(report, dict):
         cfg.require_walkthrough = _coerce_enforce(report.get("require_walkthrough"), cfg.require_walkthrough)
         cfg.report_sections = _coerce_str_list(report.get("sections"), cfg.report_sections)
+
+    session = data.get("session", {})
+    if isinstance(session, dict):
+        aethel_dir = session.get("aethel_dir")
+        if isinstance(aethel_dir, str) and aethel_dir:
+            cfg.aethel_dir = aethel_dir
 
     return cfg

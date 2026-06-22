@@ -1,5 +1,6 @@
 from aethel.config import AethelConfig
 from aethel.linter import (
+    _artifact_base,
     _artifact_language_warning,
     _changelog_drift,
     _check_required_headers,
@@ -13,6 +14,7 @@ from aethel.linter import (
     check_report_file,
     check_spec_sync,
 )
+from aethel.session import read_manifest, start_session
 
 _VALID_REPORT = (
     "# Walkthrough\n\n## Summary\nDid the thing.\n\n## Changes made\n- a\n\n"
@@ -223,6 +225,46 @@ def test_knowledge_index_placeholder_warns(tmp_path, capsys):
     _write_index(tmp_path, "# Index\n\n> [Insert summary here]\n")
     check_knowledge_index(str(tmp_path))
     assert "placeholder" in capsys.readouterr().out.lower()
+
+
+def test_artifact_base_falls_back_to_root_without_session(tmp_path):
+    # No `.aethel/CURRENT` -> base is the workspace root (backward-compatible).
+    assert _artifact_base(str(tmp_path), AethelConfig()) == str(tmp_path)
+
+
+def test_artifact_base_resolves_active_session(tmp_path):
+    session_dir = start_session(str(tmp_path), "demo")
+    assert _artifact_base(str(tmp_path), AethelConfig()) == session_dir
+
+
+def test_report_check_reads_from_active_session(tmp_path):
+    # A report at the root is invisible once a session is open; the session's own
+    # report is what the check validates.
+    (tmp_path / "walkthrough.md").write_text(_VALID_REPORT, encoding="utf-8")
+    session_dir = start_session(str(tmp_path), "demo")
+    errs, _ = check_report_file(str(tmp_path))
+    assert errs and "not found" in errs[0]  # root report ignored; session has none yet
+
+    import os
+    with open(os.path.join(session_dir, "walkthrough.md"), "w", encoding="utf-8") as f:
+        f.write(_VALID_REPORT)
+    errs, _ = check_report_file(str(tmp_path))
+    assert errs == []
+
+
+def test_walkthrough_sync_stays_pure(tmp_path):
+    # The guard must never mutate the session manifest (marking done is `aethel done`'s job).
+    import os
+
+    from aethel.linter import check_walkthrough_sync
+    session_dir = start_session(str(tmp_path), "demo")
+    with open(os.path.join(session_dir, "task.md"), "w", encoding="utf-8") as f:
+        f.write("- [x] done\n- [x] run prompt-linter\n")
+    with open(os.path.join(session_dir, "walkthrough.md"), "w", encoding="utf-8") as f:
+        f.write(_VALID_REPORT)
+    # 'off' short-circuits without git; the point is the manifest is untouched.
+    check_walkthrough_sync(str(tmp_path), AethelConfig(require_walkthrough="off"))
+    assert read_manifest(session_dir)["status"] == "active"
 
 
 def test_plan_language_respects_config(tmp_path):

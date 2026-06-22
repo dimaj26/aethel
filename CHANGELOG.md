@@ -2,8 +2,25 @@
 
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
-## [Unreleased] - 2026-06-22
+## [Unreleased] - 2026-06-23
 ### Added
+- **Per-session Route B working directory + reconcile-on-start lifecycle.** Route B artifacts
+  (`implementation_plan.md` / `task.md` / `walkthrough.md`) now live in a per-session directory
+  under a gitignored `.aethel/` tree (`.aethel/sessions/<run-id>/`), not at the repo root, removing
+  the mismatched-fixed-name and interrupted-session-pollution failure modes. New `aethel/session.py`
+  (stdlib only): sortable UTC run-ids, `start_session` (reconcile prior + open new), `reconcile`
+  (validated → `.aethel/archive/<id>/`, interrupted → `.aethel/archive/_incomplete/<id>/`),
+  `mark_validated`, and a `session.json` manifest (`status ∈ active|validated`). New CLI verbs
+  `aethel start [slug]` (opens a session, reconciles/archives the previous) and `aethel done`
+  (re-validates the report via `check_report_file`, then marks `status=validated`; refuses on a
+  bad/absent report). Completion is an explicit verb, not a guard side-effect — the walkthrough
+  guard stays PURE. The linter gains `_artifact_base` (active session dir if `.aethel/CURRENT`
+  resolves, else workspace root); `check_plan_file` / `check_checklist_file` / `check_report_file`
+  / `check_plan_stage` and `check_walkthrough_sync` all read from that base, so workspaces that
+  never run `aethel start` (fresh clone, clean CI) behave exactly as before. `aethel init` /
+  `aethel update` gitignore `.aethel/` (`ensure_aethel_gitignored`); `[session] aethel_dir` config
+  relocates the tree. Route B in the core block gains step 1 (`aethel start`) and step 10
+  (`aethel done`); new `knowledge/session-lifecycle.md`. Polygon scenario M.
 - **Mandatory walkthrough report (`walkthrough.md`) + commit-time guard.** A Route B task now
   must produce a session report with a defined structure (`Summary` / `Changes made` /
   `What was tested` / `Validation results`). New `check_walkthrough_sync` is a sibling of the

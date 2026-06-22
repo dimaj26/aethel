@@ -25,3 +25,6 @@ TEST_TenirTooClub_Bot/
 # Per-session walkthrough report (local artifact, not committed)
 walkthrough.md
 
+# Per-session Aethel working dir (local scratch)
+.aethel/
+

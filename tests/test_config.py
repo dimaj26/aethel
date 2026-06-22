@@ -74,6 +74,24 @@ def test_invalid_require_walkthrough_falls_back(tmp_path):
     assert load_config(str(tmp_path)).require_walkthrough == "error"  # invalid -> default
 
 
+def test_session_aethel_dir_default(tmp_path):
+    assert load_config(str(tmp_path)).aethel_dir == ".aethel"
+
+
+def test_session_aethel_dir_override(tmp_path):
+    (tmp_path / "aethel.toml").write_text(
+        '[session]\naethel_dir = ".sessions"\n', encoding="utf-8",
+    )
+    assert load_config(str(tmp_path)).aethel_dir == ".sessions"
+
+
+def test_session_aethel_dir_empty_falls_back(tmp_path):
+    (tmp_path / "aethel.toml").write_text(
+        '[session]\naethel_dir = ""\n', encoding="utf-8",
+    )
+    assert load_config(str(tmp_path)).aethel_dir == ".aethel"  # empty -> default
+
+
 def test_structure_and_language_overrides(tmp_path):
     (tmp_path / "aethel.toml").write_text(
         '[structure]\n'

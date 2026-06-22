@@ -568,6 +568,84 @@ def test_scenario_l(temp_dir):
 
     print(f"{GREEN}[PASS] Scenario L completed successfully.{RESET}")
 
+def test_scenario_m(temp_dir):
+    print_banner("Scenario M: Per-session lifecycle (start / done / reconcile-archive)")
+    scen_dir = os.path.join(temp_dir, "scenario_m")
+    os.makedirs(scen_dir)
+
+    run_cmd(["git", "init"], scen_dir)
+    run_cmd(["git", "config", "user.email", "polygon@aethel.test"], scen_dir)
+    run_cmd(["git", "config", "user.name", "Polygon"], scen_dir)
+    run_cmd([sys.executable, "-m", "aethel.cli", "init"], scen_dir)
+    os.remove(os.path.join(scen_dir, "AETHEL_ONBOARDING.md"))
+
+    aethel_dir = os.path.join(scen_dir, ".aethel")
+
+    # `.aethel/` is gitignored by init.
+    with open(os.path.join(scen_dir, ".gitignore"), "r", encoding="utf-8") as f:
+        assert ".aethel" in f.read(), "init did not gitignore the .aethel/ tree"
+
+    def current_session(d):
+        with open(os.path.join(d, ".aethel", "CURRENT"), "r", encoding="utf-8") as fh:
+            return fh.read().strip()
+
+    valid_report = (
+        "# Walkthrough\n\n## Summary\nDid the thing.\n\n## Changes made\n- module.py\n\n"
+        "## What was tested\n- aethel lint\n\n## Validation results\n- green\n"
+    )
+
+    # 1. `aethel start` opens a session dir + CURRENT pointer.
+    run_cmd([sys.executable, "-m", "aethel.cli", "start", "feat-one"], scen_dir)
+    assert os.path.exists(os.path.join(aethel_dir, "CURRENT")), "CURRENT pointer not written"
+    first_id = current_session(scen_dir)
+    first_dir = os.path.join(aethel_dir, "sessions", first_id)
+    assert os.path.isdir(first_dir), "session dir not created"
+    assert first_id.endswith("-feat-one"), "run-id did not carry the slug"
+
+    # 2. `aethel done` refuses without a valid report (session stays active).
+    run_cmd([sys.executable, "-m", "aethel.cli", "done"], scen_dir, expected_code=1)
+
+    # 3. Author plan/task/valid report INSIDE the session dir, then `aethel done` marks validated.
+    with open(os.path.join(first_dir, "task.md"), "w", encoding="utf-8") as f:
+        f.write("- [x] done\n- [x] run prompt-linter\n")
+    with open(os.path.join(first_dir, "walkthrough.md"), "w", encoding="utf-8") as f:
+        f.write(valid_report)
+    run_cmd([sys.executable, "-m", "aethel.cli", "done"], scen_dir, expected_code=0)
+    import json as _json
+    with open(os.path.join(first_dir, "session.json"), "r", encoding="utf-8") as f:
+        assert _json.load(f)["status"] == "validated", "done did not mark the manifest validated"
+
+    # 4. A second `aethel start` reconciles the validated session into archive/<id>/, root clean.
+    run_cmd([sys.executable, "-m", "aethel.cli", "start", "feat-two"], scen_dir)
+    assert os.path.isdir(os.path.join(aethel_dir, "archive", first_id)), \
+        "validated session not archived under archive/<id>/"
+    assert not os.path.isdir(first_dir), "validated session still in sessions/ after reconcile"
+    second_id = current_session(scen_dir)
+    assert second_id != first_id, "second start reused the first run-id"
+
+    # 5. The walkthrough guard reads from the SESSION dir: code staged + task.md in the session,
+    #    no report -> blocks; +report -> passes.
+    second_dir = os.path.join(aethel_dir, "sessions", second_id)
+    run_cmd(["git", "add", "-A"], scen_dir)
+    run_cmd(["git", "commit", "--no-verify", "-m", "chore: scaffold"], scen_dir)
+    with open(os.path.join(second_dir, "task.md"), "w", encoding="utf-8") as f:
+        f.write("- [x] done\n- [x] run prompt-linter\n")
+    with open(os.path.join(scen_dir, "module.py"), "w", encoding="utf-8") as f:
+        f.write("def f():\n    return 1\n")
+    run_cmd(["git", "add", "module.py"], scen_dir)
+    res = run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
+    assert "Walkthrough drift" in res.stdout, "guard did not read task.md from the session dir"
+    with open(os.path.join(second_dir, "walkthrough.md"), "w", encoding="utf-8") as f:
+        f.write(valid_report)
+    run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
+
+    # 6. Skipping `aethel done` -> next `aethel start` archives the session as _incomplete.
+    run_cmd([sys.executable, "-m", "aethel.cli", "start", "feat-three"], scen_dir)
+    assert os.path.isdir(os.path.join(aethel_dir, "archive", "_incomplete", second_id)), \
+        "interrupted session not archived under archive/_incomplete/<id>/"
+
+    print(f"{GREEN}[PASS] Scenario M completed successfully.{RESET}")
+
 def main():
     with tempfile.TemporaryDirectory() as temp_dir:
         print(f"Using temp directory: {temp_dir}")
@@ -583,6 +661,7 @@ def main():
         test_scenario_j(temp_dir)
         test_scenario_k(temp_dir)
         test_scenario_l(temp_dir)
+        test_scenario_m(temp_dir)
 
     print(f"\n{GREEN}ALL TEST SCENARIOS PASSED SUCCESSFULLY!{RESET}\n")
 

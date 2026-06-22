@@ -23,17 +23,27 @@ When the user issues a prompt, silently categorize the work into one of three ro
 ### Route B: Plan-First Implementation (RNA-Blueprint)
 * **Criteria**: New features, architectural changes, multi-file edits, database modifications, or complex refactorings.
 * **Protocol**:
-  1. Perform codebase research using search tools. Do NOT modify code yet.
-  2. Create or update `implementation_plan.md` using the **RNA-Blueprint** format (see section 2).
-  3. Specify any open questions or design decisions.
-  4. **Plan Linting**: Right after generating/updating the plan, run:
+  1. **Start a session**: run `aethel start <slug>` to open a fresh per-session working
+     directory `.aethel/sessions/<id>/` (it reconciles/archives the previous session first —
+     a validated one to `.aethel/archive/<id>/`, an interrupted one to
+     `.aethel/archive/_incomplete/<id>/`). Author `implementation_plan.md`, `task.md`, and
+     `walkthrough.md` INSIDE that directory; `.aethel/` is gitignored (local scratch). To RESUME
+     an unfinished task, keep working in the active session — do NOT re-run `aethel start`.
+  2. Perform codebase research using search tools. Do NOT modify code yet.
+  3. Create or update `implementation_plan.md` using the **RNA-Blueprint** format (see section 2).
+  4. Specify any open questions or design decisions.
+  5. **Plan Linting**: Right after generating/updating the plan, run:
      `python prompt_linter.py` or the workspace linter command.
      Correct any errors before requesting user approval.
-  5. Halt and wait for user approval before modifying code.
-  6. Upon approval, author `task.md` as a complete ordered checklist derived from the plan's Proposed Changes, then execute it in 3–5 step chunks, re-checking and editing the checklist as reality dictates.
-  7. **Checklist Linting**: Once all implementation steps are finished and all tasks in `task.md` are completed, run the workspace linter.
-  8. **Walkthrough Report (MANDATORY)**: After the checklist is complete, author `walkthrough.md` — the session/task report — using the structure below, then validate it with report linting (`--stage report`). A commit-time guard requires `walkthrough.md` whenever a Route B task stages code (escape hatch: `AETHEL_SKIP_SYNC=1`). `walkthrough.md` is a per-session local artifact (gitignored), not committed.
+  6. Halt and wait for user approval before modifying code.
+  7. Upon approval, author `task.md` as a complete ordered checklist derived from the plan's Proposed Changes, then execute it in 3–5 step chunks, re-checking and editing the checklist as reality dictates.
+  8. **Checklist Linting**: Once all implementation steps are finished and all tasks in `task.md` are completed, run the workspace linter.
+  9. **Walkthrough Report (MANDATORY)**: After the checklist is complete, author `walkthrough.md` — the session/task report — using the structure below, then validate it with report linting (`--stage report`). A commit-time guard requires `walkthrough.md` whenever a Route B task stages code (escape hatch: `AETHEL_SKIP_SYNC=1`). `walkthrough.md` is a per-session local artifact (gitignored), not committed.
      * **Structure** (required sections): `## Summary` (what & why, 1 paragraph), `## Changes made` (by area, with file refs), `## What was tested` (commands/scenarios run), `## Validation results` (outcomes, key numbers). `## Notes / follow-ups` is optional.
+  10. **Close the session**: run `aethel done`. It re-validates the active session's report and,
+      on success, marks the manifest `status=validated`; on failure it refuses and leaves the
+      session `active`. The walkthrough guard stays PURE (enforce only) — marking a session done
+      is `aethel done`'s job, never a commit side-effect.
 
 ### Route C: Docs Update (Markdown Knowledge Index) — MANDATORY post-step
 * **Criteria**: Any changes to database schemas, API surfaces, module structures, business logic, or code patterns.
