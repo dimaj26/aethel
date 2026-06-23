@@ -4,6 +4,12 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased] - 2026-06-23
 ### Added
+- **AETHEL.md §6 note on gitignored content visibility.** `.gitignore`-matched content (e.g. this
+  repo's `_nogit_*` convention) is invisible to default `Glob`/`Grep` (ripgrep respects
+  `.gitignore` regardless of git-tracking status — confirmed empirically, force-adding a file
+  does not change this). Documents that a broad/suspiciously-filtered search result warrants an
+  explicit root-level check or ignore-aware follow-up, rather than treating the convention itself
+  as the problem.
 - **Taboo #9: No Redundant Confirmation-Seeking** (`AETHEL.md` §5). Codifies that a procedural
   question already answered by this file, prior instruction, or established convention should be
   acted on directly, not re-confirmed — a written, persistent rule rather than a one-session

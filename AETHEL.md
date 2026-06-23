@@ -128,6 +128,7 @@ Every complex plan must be structured as follows:
 * **venv**: Call `.\venv\Scripts\python.exe` directly for all Python executions.
 * **One thesis, one agent.** When delegating analysis to a sub-agent, spawn one agent per distinct question/thesis — never bundle multiple analyses into a single agent. Relay each result separately.
 * **Delegate only when it pays.** A sub-agent starts cold and re-derives context you already hold — the expensive path. Spawn one only when the analysis needs broad or independent context you do not already have (large fan-out search, heavy cross-file review). When the relevant context is already loaded and the question is simple, analyze inline. If asked to use an agent for something already in context and trivial, say inline is cheaper and confirm before spawning.
+* **Gitignored content is invisible to default search, not irrelevant.** This repo uses a `_nogit_*` naming convention (`_nogit_roadmap.md`, `_nogit_dev_fixtures/`) for files that are intentionally untracked but still meaningful working content — `.gitignore` hides them from `Glob`/`Grep` (ripgrep respects `.gitignore` regardless of whether a file is git-tracked; force-adding it does not change this). If a broad search returns a suspiciously filtered or truncated result, or you are hunting for something by topic ("roadmap", "philosophy", "notes") rather than an exact known path, explicitly check repo-root files and consider a `_nogit_*`-aware or ignore-bypassing follow-up before concluding something doesn't exist.
 
 ---
 
