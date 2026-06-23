@@ -12,6 +12,7 @@ from aethel.config import load_config
 from aethel.linter import (
     check_report_file,
     classify_core_state,
+    ensure_resilient_stdio,
     run_linter,  # noqa: F401  (kept for backward-compatible imports)
 )
 from aethel.markers import (  # noqa: F401  (re-exported for backward-compatible imports)
@@ -170,6 +171,8 @@ def write_linter_wrapper(dest_dir: str) -> None:
 def write_pre_commit_hook(dest_dir: str, verb: str) -> None:
     git_dir = os.path.join(dest_dir, ".git")
     if not os.path.isdir(git_dir):
+        print("Note: no .git directory found — skipped the pre-commit hook. Run `git init` then "
+              "`aethel update` to install it.")
         return
     hooks_dir = os.path.join(git_dir, "hooks")
     os.makedirs(hooks_dir, exist_ok=True)
@@ -732,6 +735,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    ensure_resilient_stdio()
     parser = argparse.ArgumentParser(description="Aethel: AI Context & Memory CLI Management Utility")
     subparsers = parser.add_subparsers(dest="command", help="Commands to run")
 

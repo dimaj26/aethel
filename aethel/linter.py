@@ -531,7 +531,7 @@ def check_workspace_hygiene(
             except Exception:
                 pass
     if not dep_found:
-        print_warning("Package 'aethel' is not declared as a dependency in requirements.txt, setup.py, or pyproject.toml.")
+        print_warning("Package 'aethel-cli' (the PyPI distribution; `import aethel` at runtime) is not declared as a dependency in requirements.txt, setup.py, or pyproject.toml.")
 
     return not has_errors
 
@@ -893,7 +893,24 @@ def run_linter(workspace_path: str = ".") -> bool:
     return plan_ok and knowledge_ok and hygiene_ok
 
 
+def ensure_resilient_stdio() -> None:
+    """Make stdout/stderr survive characters the console's codepage can't encode.
+
+    The linter re-prints arbitrary AUTHORED Markdown (task-checklist text, plan errors) back to
+    the user. That content will eventually contain a character outside whatever codepage a
+    non-UTF-8 console (e.g. plain `cp1251`/`cp1252` Windows terminal) uses - banning specific
+    characters from prose is not a fix (this repo's own `report_lang=ru` policy means routinely
+    non-ASCII content). Replacing unencodable characters is the correct boundary fix: legibility
+    degrades gracefully instead of the process crashing.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="replace")
+
+
 def main() -> None:
+    ensure_resilient_stdio()
     parser = argparse.ArgumentParser(description="Aethel Prompt Linter for agent artifacts.")
     parser.add_argument("--dir", default=".", help="Directory containing the workspace/artifacts")
     parser.add_argument("--stage", choices=["plan", "checklist", "report", "sync"], help="Verification stage to run")
