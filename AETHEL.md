@@ -2,6 +2,18 @@
 
 Welcome, AI Developer. This file is the official human-written orchestrator and rulebook. It defines your behavioral boundaries, decision routing, planning blueprints, and development standards.
 
+> [!IMPORTANT]
+> **Audience: this project is built for full-AI development with minimal human oversight.** The
+> human gives architectural direction in words; an AI does the analysis, design, and
+> implementation — including reviewing this project's OWN tooling. When judging ergonomics
+> (friction, repeated steps, a gate that fires "too often"), reason from an AI operator's cost, not
+> a human's: re-reading an updated doc, deleting a file, repeating a check are all near-zero cost
+> for an AI. Do not import human-UX intuitions (fatigue, annoyance, "this would bother a user") to
+> evaluate a mechanism whose actual consumer is an AI agent — a forcing function that would be
+> tedious for a human (e.g. a gate that re-blocks after every `aethel update` until reviewed) is
+> exactly the right shape for an AI, which can never get "annoyed" into skipping a step it would
+> otherwise silently skip.
+
 ---
 
 ## 1. Decision Routing Protocols

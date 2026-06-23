@@ -3,6 +3,13 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Added
+- **AETHEL.md audience framing.** A prominent callout right after the welcome line: this project
+  is built for full-AI development with minimal human oversight, so ergonomics/friction questions
+  must be judged from an AI operator's near-zero cost (re-reading a doc, deleting a file), not
+  human-UX intuitions (fatigue, "this would annoy a user"). Added after repeatedly misjudging the
+  `AETHEL_ONBOARDING.md` re-block-on-every-`update` gate as excessive friction — it is exactly the
+  right shape for an AI consumer, which (unlike a human) can never be annoyed into skipping it.
 
 ## [1.1.1] - 2026-06-24
 First release built and shipped through the new tag-triggered Trusted Publishing workflow
