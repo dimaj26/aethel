@@ -2,8 +2,19 @@
 
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
-## [Unreleased] - 2026-06-23
+## [Unreleased]
 ### Added
+- **`.github/workflows/publish.yml`** — builds the sdist/wheel and publishes to PyPI via
+  [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC, `id-token: write`) on
+  any `v*.*.*` tag push. No token/secret is stored anywhere; requires a one-time "pending
+  publisher" registration for `aethel-cli` on pypi.org (repo + workflow filename `publish.yml` +
+  the `pypi` environment) before the first tag-triggered run.
+
+## [1.1.0] - 2026-06-23
+**First PyPI release**, published manually as `aethel-cli` 1.1.0
+(https://pypi.org/project/aethel-cli/1.1.0/) — verified by installing the published package into
+a clean venv and running `aethel version`/`aethel init`. Future releases use the tag-triggered
+Trusted Publishing workflow above instead of a manual `twine upload`.
 - **AETHEL.md §6 note on gitignored content visibility.** `.gitignore`-matched content (e.g. this
   repo's `_nogit_*` convention) is invisible to default `Glob`/`Grep` (ripgrep respects
   `.gitignore` regardless of git-tracking status — confirmed empirically, force-adding a file
