@@ -36,3 +36,12 @@ consistency (shared `classify_core_state`, see [core consistency](core-consisten
 whether `aethel` is importable by the pre-commit hook's interpreter (exit 1 on a hard problem).
 See [linter checks](linter-checks.md), [recipe discovery](recipes.md), and
 [spec architecture](spec-architecture.md).
+
+## Install & bootstrap
+Recommended install is **pipx** (`pipx install aethel`) — a global CLI the pre-commit hook finds via
+`command -v aethel`, independent of any project venv; for development, `pip install -e .` inside the
+venv. The generated hook **degrades gracefully** when `aethel` is not importable: it warns and skips
+(exit 0) rather than blocking the commit, unless `AETHEL_REQUIRE` is set (strict mode, mirror of
+`AETHEL_SKIP_SYNC`); real lint violations still fail. `aethel init` probes the hook interpreter and
+prints the install command when the package is missing, without editing dependencies. See
+[ADR 0003](decisions/0003-hook-degradation.md).

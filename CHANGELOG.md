@@ -4,6 +4,17 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased] - 2026-06-23
 ### Changed
+- **Pre-commit hook degrades gracefully on a missing install.** Previously, if `aethel` was not
+  importable by the hook's interpreter, the generated `prompt_linter.py` wrapper printed an error and
+  exited `1` — hard-blocking the commit for a fresh clone / CI / not-yet-installed contributor, even
+  though that is not a rule violation. The wrapper now **warns and skips (exit 0)**, naming the
+  interpreter and the exact install commands, unless `AETHEL_REQUIRE` is set (strict mode, mirror of
+  `AETHEL_SKIP_SYNC`) which restores `exit 1`. Real lint violations still fail (`main()` runs only on
+  a successful import). The hook also prefers the installed `aethel` console script
+  (`command -v aethel` → `aethel lint .`) before falling back to a venv interpreter, so a pipx-global
+  CLI is found even when a project venv lacks the package. `aethel init` now probes the hook
+  interpreter and prints the install command when `aethel` is missing, without editing dependencies.
+  See ADR 0003; new `tests/test_bootstrap.py`.
 - **Knowledge-index orphan check is now transitive (navigable reachability).** A topic is an
   orphan only if it is unreachable by navigation from the index *transitively*
   (`index → topic → topic → ADR`), not merely if the index does not link it directly.

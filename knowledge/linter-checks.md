@@ -8,6 +8,13 @@ description: The checks aethel.linter runs and how they are wired into stages.
 `aethel/linter.py` validates a workspace. Severities are driven by `aethel.config` /
 `aethel.toml`. The pre-commit hook runs the parameterless default; `--stage` selects one.
 
+**Hook degradation.** The hook prefers the installed `aethel` console script (`command -v aethel` →
+`aethel lint .`), falling back to a venv interpreter running the `prompt_linter.py` wrapper. If
+`aethel` is not importable, the wrapper **warns and skips (exit 0)** instead of blocking the commit —
+a missing install is not a rule violation. Strict mode `AETHEL_REQUIRE=1` makes it a hard `exit 1`
+(mirror of `AETHEL_SKIP_SYNC`). Real lint violations always exit 1. See
+[ADR 0003](decisions/0003-hook-degradation.md).
+
 ## Artifact checks
 All artifact checks read from the **artifact base** — `_artifact_base(workspace, cfg)` resolves to
 the active session dir when `.aethel/CURRENT` exists, else the workspace root (backward-compatible;
