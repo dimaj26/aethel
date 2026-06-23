@@ -4,6 +4,18 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased]
 ### Added
+- **Mechanical guard for the one-directional dev-env/core consistency rule.** `check_core_consistency`
+  exempts this repo from comparing itself against the shipped template ("this repository IS the
+  source of the core"), so nothing ever caught the actual standing violation: the template's
+  `## 5. Critical Coding Taboos` list and this repo's own `AETHEL.md` had drifted apart since the
+  project's first commit (the template prescribed a `[G-xxx]`/`[C-xxx]`/`[K-xxx]` tag-reference
+  convention this repo's own rulebook never adopted). New `tests/test_dev_env_core_sync.py`
+  asserts every taboo the template declares is also present in this repo's own `AETHEL.md`
+  (dev-env ⊇ core; the reverse asymmetry — dev-only taboos the template doesn't need — stays
+  allowed). Fixed the standing violation by dropping the unused tag-reference convention from the
+  template (replaced with the simpler line this repo's `AETHEL.md` already used) and propagating
+  Taboo #9 to the template in generalized form. `aethel.CORE_VERSION` bumped 1.1.0 → 1.2.0 (the
+  managed block's rule content changed).
 - **AETHEL.md audience framing.** A prominent callout right after the welcome line: this project
   is built for full-AI development with minimal human oversight, so ergonomics/friction questions
   must be judged from an AI operator's near-zero cost (re-reading a doc, deleting a file), not

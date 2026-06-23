@@ -20,6 +20,12 @@ library defaults. The relationship is directional and must be preserved.
   against the installed library's core (via `aethel/markers.py`); divergence is resolved with
   `aethel update`, not hand-editing. This source repo *defines* the core and is exempt
   (`_is_aethel_source_repo`). Severity: `[consistency] enforce` (default `warn`).
+- **This repo's own exemption leaves a gap `check_core_consistency` cannot close**: nothing
+  mechanically verifies that THIS repo's own `AETHEL.md` (the dev environment) itself meets every
+  standard the shipped template declares — the directional rule (dev-env ⊇ core) applies here
+  too, just unchecked by the linter. `tests/test_dev_env_core_sync.py` closes that specific gap
+  for the Critical Coding Taboos list (the template's taboos must all appear in this repo's own
+  `AETHEL.md`; the reverse asymmetry — dev-only taboos the template doesn't need — is allowed).
 
 ## Version stamping & skew
 The managed block carries a version stamp `<!-- AETHEL:CORE-VERSION X.Y.Z -->` right under the
