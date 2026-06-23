@@ -3,6 +3,8 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+
+## [1.4.0] - 2026-06-24
 ### Changed
 - **`[C-]` / `[K-]` reference tags are now mechanically resolved** (completes the tag-indexing
   convention; `CORE_VERSION` 1.3.0 → 1.4.0). Following the `[G-]` slug work, `[C-<slug>]` now
