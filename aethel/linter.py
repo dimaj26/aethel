@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+from typing import NamedTuple
 
 from aethel import CORE_VERSION
 from aethel.config import AethelConfig, load_config
@@ -653,6 +654,65 @@ def _is_aethel_source_repo(workspace_path: str) -> bool:
     return os.path.exists(os.path.join(workspace_path, "aethel", "templates", "AETHEL.md.template"))
 
 
+class CoreState(NamedTuple):
+    """The state of a workspace's managed core block vs the installed library.
+
+    ``status`` is one of:
+    * ``"source"`` — the workspace IS the Aethel source repo (defines the core).
+    * ``"no_template"`` — the installed library ships no core template to compare.
+    * ``"no_workspace"`` — the workspace has no readable ``AETHEL.md``.
+    * ``"no_block"`` — ``AETHEL.md`` exists but has no ``aethel-core`` managed block.
+    * ``"consistent"`` — block matches structure AND version.
+    * ``"skew"`` — block matches structure but the version stamp differs (stale).
+    * ``"diverged"`` — block structure differs from the library (hand-edited / forked).
+
+    ``ws_version`` is the workspace's stamped core version (``None`` if unstamped /
+    absent); ``lib_version`` is the version the installed library ships.
+    """
+
+    status: str
+    ws_version: str | None
+    lib_version: str
+
+
+def classify_core_state(workspace_path: str) -> CoreState:
+    """Classify a workspace's core block against the installed library core.
+
+    Config-independent: it computes *what the state is*, never *how severe* — the
+    enforce/severity mapping lives in ``check_core_consistency``. It is the single
+    source of truth shared by the linter check and ``aethel doctor``.
+    """
+    lib_version = _installed_core_version()
+    if _is_aethel_source_repo(workspace_path):
+        return CoreState("source", lib_version, lib_version)
+
+    lib_core = _installed_core_block()
+    if lib_core is None:
+        return CoreState("no_template", None, lib_version)
+
+    aethel_path = os.path.join(workspace_path, "AETHEL.md")
+    if not os.path.exists(aethel_path):
+        return CoreState("no_workspace", None, lib_version)
+    try:
+        with open(aethel_path, "r", encoding="utf-8") as f:
+            ws_core = extract_managed_block(f.read(), "aethel-core")
+    except OSError:
+        return CoreState("no_workspace", None, lib_version)
+
+    if ws_core is None:
+        return CoreState("no_block", None, lib_version)
+
+    structurally_equal = (
+        normalize_block(strip_core_version(ws_core)) == normalize_block(strip_core_version(lib_core))
+    )
+    ws_version = parse_core_version(ws_core)
+    if not structurally_equal:
+        return CoreState("diverged", ws_version, lib_version)
+    if ws_version == lib_version:
+        return CoreState("consistent", ws_version, lib_version)
+    return CoreState("skew", ws_version, lib_version)
+
+
 def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
     """Core-consistency standard: a deployed workspace must not contradict the
     Aethel core. Mechanically, its `aethel-core` managed block must match the
@@ -671,36 +731,25 @@ def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None)
     Returns True (non-blocking) unless a problem is found at its 'error' severity.
     """
     cfg = _resolve_cfg(workspace_path, cfg)
-    if _is_aethel_source_repo(workspace_path):
+    state = classify_core_state(workspace_path)
+    if state.status == "source":
         return True
     if cfg.consistency_enforce == "off" and cfg.version_skew_enforce == "off":
         return True
-    aethel_path = os.path.join(workspace_path, "AETHEL.md")
-    lib_core = _installed_core_block()
-    if not os.path.exists(aethel_path) or lib_core is None:
-        return True  # missing AETHEL.md is a hygiene concern; missing template = can't compare
-
-    try:
-        with open(aethel_path, "r", encoding="utf-8") as f:
-            ws_core = extract_managed_block(f.read(), "aethel-core")
-    except OSError:
+    # Nothing comparable: missing AETHEL.md is a hygiene concern; missing template
+    # = can't compare. Both are non-blocking here.
+    if state.status in ("no_template", "no_workspace"):
         return True
 
-    structurally_equal = (
-        ws_core is not None
-        and normalize_block(strip_core_version(ws_core)) == normalize_block(strip_core_version(lib_core))
-    )
-    if structurally_equal:
-        assert ws_core is not None  # implied by structurally_equal
-        ws_version = parse_core_version(ws_core)
-        lib_version = _installed_core_version()
-        if ws_version == lib_version:
-            return True  # structure + version match: fully consistent
+    if state.status == "consistent":
+        return True  # structure + version match: fully consistent
+
+    if state.status == "skew":
         print("--- Running Core Consistency Validation ---")
         msg = (
             f"Core version skew: this workspace's managed core is version "
-            f"{ws_version or '(unstamped)'} but the installed Aethel library ships core "
-            f"{lib_version}. The block is otherwise unchanged — run `aethel update` to re-sync it."
+            f"{state.ws_version or '(unstamped)'} but the installed Aethel library ships core "
+            f"{state.lib_version}. The block is otherwise unchanged — run `aethel update` to re-sync it."
         )
         if cfg.version_skew_enforce == "error":
             print_error(msg)
@@ -713,7 +762,7 @@ def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None)
     if cfg.consistency_enforce == "off":
         return True
     print("--- Running Core Consistency Validation ---")
-    if ws_core is None:
+    if state.status == "no_block":
         msg = (
             "AETHEL.md has no managed core block (aethel-core): the workspace has forked "
             "from the Aethel core. Run `aethel update` to restore the managed block and keep "

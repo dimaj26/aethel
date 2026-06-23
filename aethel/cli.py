@@ -2,13 +2,16 @@ import argparse
 import datetime
 import os
 import shutil
+import subprocess
 import sys
 from typing import Any
 
+import aethel
 from aethel import session
 from aethel.config import load_config
 from aethel.linter import (
     check_report_file,
+    classify_core_state,
     run_linter,  # noqa: F401  (kept for backward-compatible imports)
 )
 from aethel.markers import (  # noqa: F401  (re-exported for backward-compatible imports)
@@ -543,6 +546,86 @@ def cmd_done(args: argparse.Namespace) -> None:
     print(f"Session validated: {os.path.relpath(session_dir, dest_dir)}")
 
 
+def resolve_hook_python(workspace_path: str) -> str:
+    """The interpreter the generated pre-commit hook would invoke.
+
+    Mirrors PRE_COMMIT_HOOK's pick order so `doctor` probes the SAME interpreter
+    the hook uses: workspace venv first (Windows then POSIX layout), else a bare
+    `python` from PATH.
+    """
+    candidates = [
+        os.path.join(workspace_path, "venv", "Scripts", "python.exe"),
+        os.path.join(workspace_path, "venv", "Scripts", "python"),
+        os.path.join(workspace_path, "venv", "bin", "python"),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return "python"
+
+
+def probe_import(python_exe: str) -> tuple[bool, str]:
+    """Whether `import aethel` succeeds under `python_exe`.
+
+    Returns (ok, detail); on failure `detail` carries the captured reason (Taboo
+    #6: never swallow the error silently). A missing interpreter or timeout is a
+    failed probe, not a raised exception — `doctor` is a diagnostic.
+    """
+    try:
+        proc = subprocess.run(
+            [python_exe, "-c", "import aethel"],
+            capture_output=True, text=True, timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, f"could not run {python_exe!r}: {e}"
+    if proc.returncode == 0:
+        return True, ""
+    return False, (proc.stderr or proc.stdout or "non-zero exit").strip()
+
+
+def cmd_version(args: argparse.Namespace | None) -> None:
+    """Print the package version and the managed-core-block version."""
+    print(f"aethel {aethel.__version__} (core {aethel.CORE_VERSION})")
+
+
+_CORE_STATE_LABEL = {
+    "source": "source repo (defines the core; consistency check exempt)",
+    "no_template": "cannot compare (installed library ships no core template)",
+    "no_workspace": "no AETHEL.md in this workspace",
+    "no_block": "FORKED — AETHEL.md has no managed core block (run `aethel update`)",
+    "consistent": "consistent (matches the installed library core)",
+    "skew": "version skew — stale core, run `aethel update`",
+    "diverged": "DIVERGED — managed core block was hand-edited (run `aethel update`)",
+}
+
+
+def cmd_doctor(args: argparse.Namespace) -> None:
+    """Summarize workspace health: versions, core-block state, importability.
+
+    Exits 1 on a HARD problem (core block diverged/forked, or `aethel` not
+    importable by the hook interpreter); a mere version skew is a warn → exit 0.
+    """
+    dest_dir = os.path.abspath(args.path)
+    state = classify_core_state(dest_dir)
+    python_exe = resolve_hook_python(dest_dir)
+    importable, detail = probe_import(python_exe)
+
+    ws_version = state.ws_version or "(unstamped/absent)"
+    print(f"Aethel doctor — workspace: {dest_dir}")
+    print(f"  package version : {aethel.__version__}")
+    print(f"  library core    : {state.lib_version}")
+    print(f"  workspace core  : {ws_version}")
+    print(f"  core block      : {_CORE_STATE_LABEL.get(state.status, state.status)}")
+    print(f"  hook interpreter: {python_exe}")
+    if importable:
+        print("  aethel import   : yes")
+    else:
+        print(f"  aethel import   : NO — {detail}")
+
+    hard_problem = state.status in ("no_block", "diverged") or not importable
+    sys.exit(1 if hard_problem else 0)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Aethel: AI Context & Memory CLI Management Utility")
     subparsers = parser.add_subparsers(dest="command", help="Commands to run")
@@ -574,6 +657,15 @@ def main() -> None:
     p_done = subparsers.add_parser("done", help="Re-validate the active session's walkthrough.md and mark it validated")
     p_done.add_argument("--path", default=".", help="Workspace path (default: current)")
     p_done.set_defaults(func=cmd_done)
+
+    # version subcommand: print package + core version
+    p_version = subparsers.add_parser("version", help="Print the Aethel package and managed-core versions")
+    p_version.set_defaults(func=cmd_version)
+
+    # doctor subcommand: summarize version skew, core consistency, importability
+    p_doctor = subparsers.add_parser("doctor", help="Diagnose version skew, core-block consistency, and importability")
+    p_doctor.add_argument("path", nargs="?", default=".", help="Workspace path to diagnose (default: current)")
+    p_doctor.set_defaults(func=cmd_doctor)
 
     args = parser.parse_args()
     if not args.command:

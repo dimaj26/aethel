@@ -28,10 +28,17 @@ block's rules change — distinct from the pip package version `aethel.__version
 each internally in sync: the template stamp == `CORE_VERSION`, and `__version__` ==
 `pyproject [project].version`).
 
-`check_core_consistency` strips the stamp from both sides (`markers.strip_core_version`) before
-the structural compare, so two failure modes are told apart:
+The classification is a pure seam — `classify_core_state(workspace_path) -> CoreState` (status:
+`source` / `no_template` / `no_workspace` / `no_block` / `consistent` / `skew` / `diverged`, plus
+`ws_version` / `lib_version`). It strips the stamp from both sides (`markers.strip_core_version`)
+before the structural compare, so two failure modes are told apart:
 - **structure diverges** ⇒ the block was hand-edited / forked → severity `[consistency] enforce`.
 - **structure matches, version differs** (incl. an unstamped older workspace) ⇒ the workspace is
   merely STALE → "run `aethel update`" at severity `[consistency] version_skew_enforce` (default
   `warn`, non-blocking). `aethel update` rewrites the block from the template, refreshing the
   stamp so the skew clears.
+
+`check_core_consistency` consumes that classification and applies the config severity. `aethel
+doctor` consumes the SAME `classify_core_state` to print the state for humans (see
+[project overview](README.md)), so the linter and the doctor never disagree on what the core's
+state is.

@@ -4,6 +4,14 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased] - 2026-06-23
 ### Added
+- **`aethel version` / `aethel doctor` commands.** `aethel version` prints the package + managed-core
+  versions. `aethel doctor` diagnoses a workspace — package/library/workspace core versions, the
+  core-block state (consistent / skew / diverged / no-block / source), and whether `aethel` is
+  importable by the pre-commit hook's interpreter (resolved the same way the hook picks it). It
+  exits `1` on a hard problem (core block diverged/forked, or `aethel` not importable), `0`
+  otherwise (a version skew is a warn). The skew/divergence classification is now a pure seam,
+  `classify_core_state() -> CoreState`, shared by `check_core_consistency` and `doctor` so they
+  never disagree. New `tests/test_doctor.py`.
 - **Core version stamping + version-skew detection.** The managed `aethel-core` block now carries
   a `<!-- AETHEL:CORE-VERSION X.Y.Z -->` stamp (shipped in the template, owned by `aethel update`).
   `check_core_consistency` strips it before the structural compare, so it distinguishes a

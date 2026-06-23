@@ -30,6 +30,9 @@ and ships a CLI + linter that scaffold, update, and validate a workspace.
 
 ## How It Fits Together
 `aethel init` scaffolds a workspace from `aethel/templates`; `aethel update` refreshes the
-managed core block non-destructively; `aethel lint` runs the checks. See
-[linter checks](linter-checks.md), [core consistency](core-consistency.md),
-[recipe discovery](recipes.md), and [spec architecture](spec-architecture.md).
+managed core block non-destructively; `aethel lint` runs the checks. `aethel version` prints the
+package + core versions; `aethel doctor` diagnoses a workspace — version skew, core-block
+consistency (shared `classify_core_state`, see [core consistency](core-consistency.md)), and
+whether `aethel` is importable by the pre-commit hook's interpreter (exit 1 on a hard problem).
+See [linter checks](linter-checks.md), [recipe discovery](recipes.md), and
+[spec architecture](spec-architecture.md).
