@@ -75,7 +75,10 @@ Every complex plan must be structured as follows:
 - Logic, risks, edge cases.
 
 ## Contextual Constraints (CC)
-- Extract relevant rules from local configurations, the knowledge index (`CONTEXT.md`), and `knowledge/*.md`.
+- Reference specific rules using the namespace tag format to save tokens and prevent line-shift errors:
+  - `[G-xxx]` for Orchestrator Rules (e.g. `[G-Taboo1]`, `[G-GW1]`) from AETHEL.md.
+  - `[C-xxx]` for index entries in CONTEXT.md.
+  - `[K-xxx]` for Domain Rules from a `knowledge/*.md` topic file (e.g. `[K-arch]`).
 
 ## Proposed Changes
 ### [Component/Module Name]
