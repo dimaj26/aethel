@@ -33,9 +33,13 @@ see [session lifecycle](session-lifecycle.md)).
   the valid `[G-]` slug set — §5 taboo titles (`N. **Title**` → slug) plus heading rule codes
   (`(GW-1)` → `gw-1`), derived mechanically so there is no second list to drift. The legacy
   positional `[G-Taboo<N>]` still resolves (by §5 number) but is reported as a **deprecation
-  warning**, since it silently re-points when §5 is reordered. An unresolved tag (bad slug, or a
-  legacy number absent from §5) is routed by `[plan] tag_reference_enforce` (library default
-  `warn`; this repo promotes it to `error`, since it defines the convention).
+  warning**, since it silently re-points when §5 is reordered. `[C-<slug>]` resolves the same way
+  against **CONTEXT.md** (inline-link text slugs, link target file stems, and section-heading
+  slugs) and `[K-<slug>]` against **`knowledge/**/*.md`** (each topic-file stem plus every heading
+  inside it) — no positional legacy form, so resolved/unresolved only, each source failing open if
+  absent. An unresolved tag (bad slug, or a legacy `[G-]` number absent from §5) is routed by
+  `[plan] tag_reference_enforce` (library default `warn`; this repo promotes it to `error`, since
+  it defines the convention).
 - `check_checklist_file` — `task.md` items are all complete and the last item runs the linter.
 - `check_report_file` — `walkthrough.md` has Changes made / What was tested / Validation results.
 

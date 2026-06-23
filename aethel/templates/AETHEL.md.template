@@ -1,5 +1,5 @@
 <!-- AETHEL:MANAGED:BEGIN id=aethel-core -->
-<!-- AETHEL:CORE-VERSION 1.3.0 -->
+<!-- AETHEL:CORE-VERSION 1.4.0 -->
 # Aethel Development Orchestrator & AI Protocol (AETHEL.md)
 
 Welcome, AI Developer. This file is the official human-written orchestrator and rulebook. It defines your behavioral boundaries, decision routing, planning blueprints, and development standards.
@@ -77,8 +77,9 @@ Every complex plan must be structured as follows:
 ## Contextual Constraints (CC)
 - Reference specific rules using the namespace tag format to save tokens and prevent line-shift errors. A tag is a **stable slug naming its target by identity, never its list position** (lowercase, non-alphanumeric runs → single hyphen):
   - `[G-xxx]` for Orchestrator Rules from AETHEL.md — slug of the rule's title or code (e.g. `[G-no-placeholders-in-prod]` for the §5 taboo "No Placeholders in Prod", `[G-gw-1]` for the GW-1 protocol). The legacy positional form `[G-TabooN]` still resolves but is **deprecated** (it silently re-points when §5 is reordered) and the linter warns on it.
-  - `[C-xxx]` for index entries in CONTEXT.md.
-  - `[K-xxx]` for Domain Rules from a `knowledge/*.md` topic file (e.g. `[K-arch]`).
+  - `[C-xxx]` for index entries in CONTEXT.md — slug of an inline-link's text, its target file stem, or a section heading (e.g. `[C-linter-checks]`). Resolved by the linter against CONTEXT.md.
+  - `[K-xxx]` for Domain Rules from a `knowledge/*.md` topic file — slug of the topic-file stem or a heading inside it (e.g. `[K-linter-checks]`). Resolved by the linter against `knowledge/**/*.md`.
+  - All three are resolved mechanically under `[plan] tag_reference_enforce`; an unresolved `[C-]`/`[K-]` slug is flagged exactly like an unresolved `[G-]` one.
 
 ## Proposed Changes
 ### [Component/Module Name]

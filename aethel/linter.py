@@ -144,6 +144,71 @@ def _unresolved_taboo_tags(content: str, workspace_path: str) -> tuple[list[str]
     return unresolved, deprecated
 
 
+# `[C-<slug>]` (CONTEXT.md index entries) and `[K-<slug>]` (knowledge/*.md domain rules) mirror the
+# `[G-]` slug form: a stable slug naming the target by identity, validated against the source-of-truth
+# so there is no second hand-maintained list to drift. No positional legacy form ever existed for
+# these, so there is no deprecation path — only resolved/unresolved.
+_C_SLUG_TAG_RE = re.compile(r"\[C-([a-z0-9][a-z0-9-]*)\]")
+_K_SLUG_TAG_RE = re.compile(r"\[K-([a-z0-9][a-z0-9-]*)\]")
+# Inline markdown link `[text](target)` — both the text and the target stem identify an index entry.
+# (Distinct from `_INLINE_LINK_RE` below, which captures only the target for dead-link checks.)
+_CK_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+_CK_HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*$", re.MULTILINE)
+
+
+def _valid_c_slugs(context_text: str) -> set[str]:
+    """Valid `[C-]` slugs from CONTEXT.md: slugified inline-link text, link target file stems, and
+    section-heading text (the "link slugs/anchors" an index entry can be named by)."""
+    slugs: set[str] = set()
+    for text, target in _CK_LINK_RE.findall(context_text):
+        slugs.add(_slugify(text))
+        stem = os.path.splitext(os.path.basename(target.split("#", 1)[0]))[0]
+        if stem:
+            slugs.add(_slugify(stem))
+    slugs |= {_slugify(h) for h in _CK_HEADING_RE.findall(context_text)}
+    slugs.discard("")
+    return slugs
+
+
+def _valid_k_slugs(workspace_path: str) -> set[str]:
+    """Valid `[K-]` slugs: every `knowledge/**/*.md` topic-file stem plus every heading inside it."""
+    knowledge_dir = os.path.join(workspace_path, "knowledge")
+    slugs: set[str] = set()
+    for root, _dirs, files in os.walk(knowledge_dir):
+        for fn in files:
+            if not fn.endswith(".md"):
+                continue
+            slugs.add(_slugify(os.path.splitext(fn)[0]))
+            try:
+                with open(os.path.join(root, fn), "r", encoding="utf-8") as f:
+                    slugs |= {_slugify(h) for h in _CK_HEADING_RE.findall(f.read())}
+            except OSError:
+                continue
+    slugs.discard("")
+    return slugs
+
+
+def _unresolved_ck_tags(content: str, workspace_path: str) -> list[str]:
+    """Resolve `[C-]`/`[K-]` reference tags against CONTEXT.md and `knowledge/**/*.md`, returning the
+    unresolved tag strings. Fails OPEN per source: a missing/unreadable CONTEXT.md skips `[C-]`
+    resolution and a missing `knowledge/` dir skips `[K-]` (those absences are reported by
+    `check_knowledge_index`, not duplicated here)."""
+    c_tags = _C_SLUG_TAG_RE.findall(content)
+    k_tags = _K_SLUG_TAG_RE.findall(content)
+    unresolved: list[str] = []
+    if c_tags:
+        try:
+            with open(os.path.join(workspace_path, "CONTEXT.md"), "r", encoding="utf-8") as f:
+                valid_c = _valid_c_slugs(f.read())
+            unresolved += [f"[C-{s}]" for s in c_tags if s not in valid_c]
+        except OSError:
+            pass
+    if k_tags and os.path.isdir(os.path.join(workspace_path, "knowledge")):
+        valid_k = _valid_k_slugs(workspace_path)
+        unresolved += [f"[K-{s}]" for s in k_tags if s not in valid_k]
+    return unresolved
+
+
 def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tuple[list[str], list[str]]:
     """Validates implementation_plan.md format and language."""
     cfg = _resolve_cfg(workspace_path, cfg)
@@ -171,6 +236,17 @@ def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tup
             f"Unresolved `[G-]` tag(s) in implementation_plan.md: {', '.join(unresolved)} - "
             f"no taboo/rule with that slug or number exists in this workspace's AETHEL.md (stale "
             f"after a rename, or never existed)."
+        )
+        if cfg.tag_reference_enforce == "error":
+            errors.append(msg)
+        elif cfg.tag_reference_enforce == "warn":
+            warnings.append(msg)
+    unresolved_ck = _unresolved_ck_tags(content, workspace_path)
+    if unresolved_ck:
+        msg = (
+            f"Unresolved `[C-]`/`[K-]` tag(s) in implementation_plan.md: {', '.join(unresolved_ck)} "
+            f"- no CONTEXT.md index entry / `knowledge/` topic with that slug exists in this "
+            f"workspace (stale after a rename, or never existed)."
         )
         if cfg.tag_reference_enforce == "error":
             errors.append(msg)

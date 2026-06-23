@@ -123,6 +123,85 @@ def test_no_aethel_md_fails_open(tmp_path):
     assert errs == [] and warns == []
 
 
+# --- [C-] / [K-] resolution ([15], shares the [G-] severity lever) ---------------------------
+
+
+def _write_context(tmp_path, body: str) -> None:
+    (tmp_path / "CONTEXT.md").write_text(
+        "# Index\n\n## Tooling & Rules\n\n" + body + "\n", encoding="utf-8"
+    )
+
+
+def _write_knowledge(tmp_path, stem: str, headings: str) -> None:
+    kdir = tmp_path / "knowledge"
+    kdir.mkdir(exist_ok=True)
+    (kdir / f"{stem}.md").write_text(headings, encoding="utf-8")
+
+
+def test_c_tag_resolves_against_context_link(tmp_path):
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_context(tmp_path, "- [Linter checks](knowledge/linter-checks.md) — note.")
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[C-linter-checks]` link text slug.")
+    errs, warns = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == [] and not any("Unresolved" in w for w in warns)
+
+
+def test_c_tag_resolves_against_context_heading(tmp_path):
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_context(tmp_path, "- [Linter checks](knowledge/linter-checks.md) — note.")
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[C-tooling-rules]` section anchor.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == []
+
+
+def test_c_tag_resolves_against_link_target_stem(tmp_path):
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_context(tmp_path, "- [Linter checks](knowledge/linter-checks.md) — note.")
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[C-linter-checks]` target stem too.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == []
+
+
+def test_unknown_c_slug_blocks_when_error(tmp_path):
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_context(tmp_path, "- [Linter checks](knowledge/linter-checks.md) — note.")
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[C-no-such-entry]` typo.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert any("Unresolved" in e and "C-no-such-entry" in e for e in errs)
+
+
+def test_k_tag_resolves_against_topic_stem(tmp_path):
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_knowledge(tmp_path, "architecture", "# Architecture\n\n## Layers\n")
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[K-architecture]` topic file stem.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == []
+
+
+def test_k_tag_resolves_against_knowledge_heading(tmp_path):
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_knowledge(tmp_path, "architecture", "# Architecture\n\n## Database Facades\n")
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[K-database-facades]` heading slug.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == []
+
+
+def test_unknown_k_slug_warns_by_default(tmp_path):
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_knowledge(tmp_path, "architecture", "# Architecture\n")
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[K-no-such-topic]` renamed away.")
+    errs, warns = check_plan_file(str(tmp_path), AethelConfig())
+    assert errs == [] and any("K-no-such-topic" in w for w in warns)
+
+
+def test_ck_fails_open_without_sources(tmp_path):
+    """No CONTEXT.md and no knowledge/ dir: C/K tags fail open (absence is reported elsewhere)."""
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[C-x]` and `[K-y]` with no sources.")
+    errs, warns = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == [] and not any("Unresolved" in w for w in warns)
+
+
 def test_config_loads_tag_reference_enforce_from_toml(tmp_path):
     from aethel.config import load_config
 

@@ -4,6 +4,15 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased]
 ### Changed
+- **`[C-]` / `[K-]` reference tags are now mechanically resolved** (completes the tag-indexing
+  convention; `CORE_VERSION` 1.3.0 → 1.4.0). Following the `[G-]` slug work, `[C-<slug>]` now
+  resolves by identity against **CONTEXT.md** (inline-link text slugs, link target file stems, and
+  section-heading slugs) and `[K-<slug>]` against **`knowledge/**/*.md`** (each topic-file stem plus
+  every heading inside it). No positional legacy form ever existed for these, so there is only
+  resolved/unresolved — no deprecation path. Both reuse the existing `[plan] tag_reference_enforce`
+  severity lever (no new config key) and fail open per source (a missing CONTEXT.md / `knowledge/`
+  dir skips that half). AETHEL.md §2 + template note the resolution; `knowledge/linter-checks.md`
+  updated; C/K cases added to `tests/test_tag_references.py`. Roadmap [15].
 - **`[G-]` reference tags are now stable slugs, not list positions** (core convention; `CORE_VERSION`
   1.2.0 → 1.3.0). A tag like `[G-no-placeholders-in-prod]` resolves by *identity* against the valid
   `[G-]` slug set derived mechanically from AETHEL.md — §5 taboo titles plus heading rule codes
