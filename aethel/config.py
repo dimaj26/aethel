@@ -91,6 +91,7 @@ class AethelConfig:
     knowledge_dir: str = DEFAULT_KNOWLEDGE_DIR  # directory of atomic topic files
     dead_link_enforce: str = "error"  # error | warn | off (index link resolves on disk)
     orphan_enforce: str = "warn"  # error | warn | off (topic file unreachable from index)
+    annotation_enforce: str = "warn"  # error | warn | off (index link to a knowledge file is annotated)
     require_walkthrough: str = "error"  # error | warn | off (commit-time Route-B report guard)
     report_sections: list[str] = field(default_factory=lambda: list(DEFAULT_REPORT_SECTIONS))
     aethel_dir: str = ".aethel"  # gitignored root of the per-session working-dir tree
@@ -168,6 +169,7 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
             cfg.knowledge_dir = kdir
         cfg.dead_link_enforce = _coerce_enforce(knowledge.get("dead_link_enforce"), cfg.dead_link_enforce)
         cfg.orphan_enforce = _coerce_enforce(knowledge.get("orphan_enforce"), cfg.orphan_enforce)
+        cfg.annotation_enforce = _coerce_enforce(knowledge.get("annotation_enforce"), cfg.annotation_enforce)
 
     report = data.get("report", {})
     if isinstance(report, dict):

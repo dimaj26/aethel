@@ -229,6 +229,10 @@ def check_plan_stage(workspace_path: str, cfg: AethelConfig | None = None) -> bo
 
 
 _INLINE_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+# Same link, plus whatever trails it on the line — used to check for an annotation
+# (`[text](target) — note`). An annotation starts with a dash/colon then text.
+_INLINE_LINK_TRAIL_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)([^\n]*)")
+_ANNOTATION_RE = re.compile(r"\s*[-—–:]\s*\S")
 
 
 def _emit(severity: str, msg: str) -> bool:
@@ -255,6 +259,26 @@ def _extract_inline_links(content: str) -> list[str]:
 
 def _is_external_link(target: str) -> bool:
     return target.strip().lower().startswith(("http://", "https://", "mailto:"))
+
+
+def _unannotated_index_links(content: str, index_dir: str, knowledge_root: str) -> list[str]:
+    """Index links to a knowledge file that carry no annotation.
+
+    Reachability surfaces a file; the one-line note (`[text](target) — note`) is
+    what makes the agent open the *right* one. Scoped to links whose target
+    resolves under the knowledge dir, so prose/external links are never flagged."""
+    kn_prefix = os.path.normcase(knowledge_root) + os.sep
+    findings: list[str] = []
+    for match in _INLINE_LINK_TRAIL_RE.finditer(content):
+        target, trailing = match.group(1), match.group(2)
+        resolved = _local_link_target(target, index_dir)
+        if resolved is None:
+            continue
+        if not os.path.normcase(resolved).startswith(kn_prefix):
+            continue  # only the curated topic/ledger/ADR links carry annotations
+        if not _ANNOTATION_RE.match(trailing):
+            findings.append(target)
+    return findings
 
 
 def _local_link_target(target: str, base_dir: str) -> str | None:
@@ -367,6 +391,15 @@ def check_knowledge_index(workspace_path: str, cfg: AethelConfig | None = None) 
                     topic_rel = os.path.relpath(topic, workspace_path).replace("\\", "/")
                     if _emit(cfg.orphan_enforce, f"Orphan knowledge file: '{topic_rel}' is not reachable from the index."):
                         has_errors = True
+
+    # Annotation check: each index link to a knowledge file should carry a note —
+    # the annotation is what makes an agent open the right surfaced file.
+    for target in _unannotated_index_links(content, index_dir, os.path.normpath(knowledge_root)):
+        if _emit(
+            cfg.annotation_enforce,
+            f"Index link to '{target}' has no annotation (expected '[text]({target}) — note').",
+        ):
+            has_errors = True
 
     if has_errors:
         return False

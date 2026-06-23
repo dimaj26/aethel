@@ -3,6 +3,12 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased] - 2026-06-23
+### Added
+- **Index link-annotation check.** Each `CONTEXT.md` inline link whose target resolves under the
+  knowledge dir should carry an annotation (`[text](target) — note`): reachability surfaces a file,
+  the one-line note is what makes an agent open the *right* one. Flagged at new
+  `[knowledge] annotation_enforce` (warn by default; prose/external links are not checked). New
+  `tests/test_annotation.py`.
 ### Changed
 - **Pre-commit hook degrades gracefully on a missing install.** Previously, if `aethel` was not
   importable by the hook's interpreter, the generated `prompt_linter.py` wrapper printed an error and

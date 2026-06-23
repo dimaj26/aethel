@@ -24,6 +24,7 @@ def test_knowledge_defaults(tmp_path):
     assert cfg.knowledge_dir == "knowledge"
     assert cfg.dead_link_enforce == "error"
     assert cfg.orphan_enforce == "warn"
+    assert cfg.annotation_enforce == "warn"
 
 
 def test_knowledge_overrides(tmp_path):

@@ -36,7 +36,12 @@ keeps the index curated (AETHEL.md §7): ADRs are surfaced via the ledger
 [knowledge/decisions/README.md](decisions/README.md), not one link per ADR in the top index
 (see [ADR 0002](decisions/0002-navigable-reachability.md)). Anchors are stripped, `\`→`/`
 normalized, `http(s)`/`mailto` skipped; reference-style links/autolinks are NOT parsed, so use
-inline links only. Severities: `[knowledge] dead_link_enforce` / `orphan_enforce`.
+inline links only. Each index link to a knowledge file should also carry an **annotation**
+(`[text](target) — note`) — reachability surfaces a file, the note is what makes an agent open the
+*right* one; an unannotated knowledge link is flagged at `[knowledge] annotation_enforce` (warn by
+default; only index links whose target resolves under the knowledge dir are checked, so prose and
+external links are never flagged). Severities: `[knowledge] dead_link_enforce` / `orphan_enforce` /
+`annotation_enforce`.
 
 ## Workspace hygiene (`check_workspace_hygiene`)
 Core files present (`AETHEL.md`, `CONTEXT.md`, `.gitattributes`), knowledge dir present,
