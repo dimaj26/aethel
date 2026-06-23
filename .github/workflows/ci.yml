@@ -33,7 +33,7 @@ jobs:
         run: mypy aethel
 
       - name: Unit tests
-        run: pytest tests/test_config.py tests/test_linter.py tests/test_cli.py -q
+        run: pytest tests/ -q
 
       - name: Integration polygon
         run: python tests/run_polygon.py
