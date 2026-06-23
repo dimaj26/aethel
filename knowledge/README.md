@@ -37,6 +37,19 @@ whether `aethel` is importable by the pre-commit hook's interpreter (exit 1 on a
 See [linter checks](linter-checks.md), [recipe discovery](recipes.md), and
 [spec architecture](spec-architecture.md).
 
+## Testing strategy
+Unit tests (`tests/test_*.py`) and `tests/run_polygon.py`'s 13 end-to-end scenarios (A–M) run
+against the SOURCE checkout (editable install / `python -m aethel.cli`). That is a structural
+blind spot for packaging bugs: an editable install never goes through `package_data`/
+`MANIFEST.in` resolution, so a config bug there (e.g. `aethel/templates/` silently dropped from
+the wheel) is invisible to every test that runs from source. `tests/conftest.py`'s
+session-scoped `installed_aethel_cli` fixture closes that gap: it builds the wheel once and
+installs it into one throwaway venv, and `tests/test_release_smoke.py` /
+`tests/test_scenario_projects.py` exercise the full command surface against that REAL installed
+console script. `tests/test_packaging.py` guards the packaging config itself (the two root
+causes of the templates-missing bug — a wildcard in `packages.find` and an unanchored `*` in
+`MANIFEST.in`).
+
 ## Install & bootstrap
 Recommended install is **pipx** (`pipx install aethel-cli`) — a global CLI the pre-commit hook finds via
 `command -v aethel`, independent of any project venv; for development, `pip install -e .` inside the

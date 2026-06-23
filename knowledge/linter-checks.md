@@ -8,6 +8,13 @@ description: The checks aethel.linter runs and how they are wired into stages.
 `aethel/linter.py` validates a workspace. Severities are driven by `aethel.config` /
 `aethel.toml`. The pre-commit hook runs the parameterless default; `--stage` selects one.
 
+**Console-encoding resilience.** Both CLI entry points (`linter.main()`, `cli.main()`) call
+`ensure_resilient_stdio()` first, reconfiguring stdout/stderr with `errors="replace"`. The linter
+re-prints arbitrary AUTHORED Markdown (task-checklist text, plan errors) back to the user, which
+will eventually contain a character outside whatever codepage a non-UTF-8 console uses (e.g. a
+plain `cp1251`/`cp1252` Windows terminal) — this degrades legibility instead of crashing the
+process. See `tests/test_console_encoding.py`.
+
 **Hook degradation.** The hook prefers the installed `aethel` console script (`command -v aethel` →
 `aethel lint .`), falling back to a venv interpreter running the `prompt_linter.py` wrapper. If
 `aethel` is not importable, the wrapper **warns and skips (exit 0)** instead of blocking the commit —

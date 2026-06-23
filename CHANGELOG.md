@@ -3,7 +3,37 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased] - 2026-06-23
+### Added
+- **Release-readiness test layer (closes the structural gap behind the packaging bug above).**
+  Every existing test ran via `pip install -e .`/`python -m aethel.cli` from the source checkout
+  - an editable install never goes through `package_data`/`MANIFEST.in` at all, so a packaging
+  bug was structurally invisible. New `tests/conftest.py`'s session-scoped `installed_aethel_cli`
+  fixture builds the wheel once and installs it into one throwaway venv; `tests/test_release_smoke.py`
+  (9 tests: `init`/`lint`/`doctor`/`version`/`eject`+`--undo`/`start`+`done`/`update`, both
+  recipes) and `tests/test_scenario_projects.py` (4 cognitive scenarios: non-ASCII authored
+  content, an interrupted session archived as `_incomplete`, eject surviving further hand-edits,
+  a full JS-recipe cycle) now run against the REAL installed console script, never source.
 ### Fixed
+- **`aethel lint`/CLI crashed under a non-UTF-8 console (e.g. plain `cp1251`/`cp1252` Windows
+  terminal) on any unencodable character in authored Markdown** (an arrow in a task-checklist
+  note was enough). The linter re-prints arbitrary authored content back to the user, so banning
+  specific characters from prose isn't a fix (this repo's own `report_lang=ru` policy means
+  walkthroughs are routinely non-ASCII) - the real fix is at the I/O boundary: new
+  `ensure_resilient_stdio()` (`aethel/linter.py`) reconfigures stdout/stderr with
+  `errors="replace"`, called from both `linter.main()` and `cli.main()`. New
+  `tests/test_console_encoding.py`.
+- **Stale package name in the dependency-check warning.** `check_workspace_hygiene` told users
+  to declare `'aethel'` as a dependency - now `'aethel-cli'` (the actual installable PyPI name;
+  the detection logic itself already matched correctly via substring, only the message text was
+  wrong, so no workspace was ever mis-flagged, just mis-advised).
+- **Silent no-op when `aethel init` runs before `git init`.** The pre-commit hook was skipped with
+  zero output if no `.git` directory existed yet - a user could believe the hook was installed
+  and only discover it wasn't much later. Now prints a one-line note with the fix command.
+- **Pre-existing flaky perf threshold in `tests/run_polygon.py` Scenario D.** A hard `< 1.0s`
+  wall-clock assertion (dominated by `python -m aethel.cli` subprocess/interpreter startup, not
+  the lint algorithm) failed on a merely-busy machine with no code change (confirmed via
+  `git stash`). Loosened to `< 5.0s` - generous enough to stop being flaky while still catching a
+  genuine regression.
 - **Built wheel shipped with zero files from `aethel/templates/` (release-blocking).** Found while
   dry-running the first PyPI publish: `aethel init`/`update` would have been completely broken for
   anyone installing from PyPI. Two compounding bugs: (1) `[tool.setuptools.packages.find] include
