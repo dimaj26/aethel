@@ -86,29 +86,62 @@ def _artifact_language_warning(content: str, cfg: AethelConfig, artifact_name: s
     return None
 
 
-_TABOO_TAG_RE = re.compile(r"\[G-Taboo(\d+)\]")
+# Legacy positional form `[G-Taboo4]` (CamelCase): the number indexes §5's list position, so it
+# silently re-points when the list is reordered. Kept resolving for backward compatibility but
+# deprecated in favour of the slug form below.
+_TABOO_LEGACY_RE = re.compile(r"\[G-Taboo(\d+)\]")
 _TABOO_NUMBER_RE = re.compile(r"^(\d+)\.\s+\*\*", re.MULTILINE)
+# Slug form `[G-no-placeholders-in-prod]` (lowercase): a stable slug naming the rule by identity,
+# immune to §5 reordering. The capital `T` in the legacy form means the two regexes never overlap.
+_G_SLUG_TAG_RE = re.compile(r"\[G-([a-z0-9][a-z0-9-]*)\]")
+# Valid `[G-]` slugs are derived from AETHEL.md so there is no second hand-maintained list:
+#   - §5 taboo titles:           `N. **No Placeholders in Prod**` -> no-placeholders-in-prod
+#   - heading rule codes:        `(GW-1)`, `(CC-1)`               -> gw-1, cc-1
+_TABOO_TITLE_RE = re.compile(r"^\d+\.\s+\*\*(.+?)\*\*", re.MULTILINE)
+_RULE_CODE_RE = re.compile(r"\(([A-Za-z]+-\d+)\)")
 
 
-def _unresolved_taboo_tags(content: str, workspace_path: str) -> list[str]:
-    """`[G-Taboo<N>]` references that do not resolve to an existing numbered taboo in this
-    workspace's AETHEL.md. Plain prose ("Taboo #6") survives a renumbering by re-reading the
-    file; a stale bracket tag would not - this is the actual risk the tag convention's "prevents
-    line-shift errors" claim names, so it is the one tag form worth resolving mechanically.
-    Fails OPEN (no findings) if AETHEL.md is unreadable - that absence is reported elsewhere by
-    workspace hygiene, not duplicated here.
+def _slugify(text: str) -> str:
+    """Lowercase, non-alphanumeric runs -> single hyphen, trimmed. The exact rule plan authors
+    follow when writing a `[G-<slug>]` tag (documented in AETHEL.md §2)."""
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def _valid_g_slugs(aethel_text: str) -> set[str]:
+    slugs = {_slugify(t) for t in _TABOO_TITLE_RE.findall(aethel_text)}
+    slugs |= {_slugify(c) for c in _RULE_CODE_RE.findall(aethel_text)}
+    return slugs
+
+
+def _unresolved_taboo_tags(content: str, workspace_path: str) -> tuple[list[str], list[str]]:
+    """Resolve `[G-]` reference tags against this workspace's AETHEL.md, returning
+    ``(unresolved, deprecated)``:
+
+    - ``unresolved`` — tags that do not resolve: a legacy ``[G-Taboo<N>]`` whose number is absent
+      from §5, or a slug ``[G-<slug>]`` not among the valid `[G-]` slugs. This is the actual risk
+      the convention's "prevents line-shift errors" claim names.
+    - ``deprecated`` — every legacy ``[G-Taboo<N>]`` tag (positional, identity-blind); callers
+      surface these as warnings nudging the slug form.
+
+    Fails OPEN (empty lists) if AETHEL.md is unreadable - that absence is reported by workspace
+    hygiene, not duplicated here.
     """
-    tags = _TABOO_TAG_RE.findall(content)
-    if not tags:
-        return []
+    legacy = _TABOO_LEGACY_RE.findall(content)
+    slugs = _G_SLUG_TAG_RE.findall(content)
+    if not legacy and not slugs:
+        return [], []
     aethel_path = os.path.join(workspace_path, "AETHEL.md")
     try:
         with open(aethel_path, "r", encoding="utf-8") as f:
             aethel_text = f.read()
     except OSError:
-        return []
+        return [], []
     valid_numbers = set(_TABOO_NUMBER_RE.findall(aethel_text))
-    return [f"[G-Taboo{n}]" for n in tags if n not in valid_numbers]
+    valid_slugs = _valid_g_slugs(aethel_text)
+    unresolved = [f"[G-Taboo{n}]" for n in legacy if n not in valid_numbers]
+    unresolved += [f"[G-{s}]" for s in slugs if s not in valid_slugs]
+    deprecated = [f"[G-Taboo{n}]" for n in legacy]
+    return unresolved, deprecated
 
 
 def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tuple[list[str], list[str]]:
@@ -132,17 +165,23 @@ def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tup
         if not re.search(r"^##\s+" + re.escape(h2), content, re.MULTILINE):
             errors.append(f"Missing required H2 section: '## {h2}'.")
 
-    unresolved = _unresolved_taboo_tags(content, workspace_path)
+    unresolved, deprecated = _unresolved_taboo_tags(content, workspace_path)
     if unresolved:
         msg = (
-            f"Unresolved taboo tag(s) in implementation_plan.md: {', '.join(unresolved)} - "
-            f"no taboo with that number exists in this workspace's AETHEL.md (stale after a "
-            f"renumbering, or never existed)."
+            f"Unresolved `[G-]` tag(s) in implementation_plan.md: {', '.join(unresolved)} - "
+            f"no taboo/rule with that slug or number exists in this workspace's AETHEL.md (stale "
+            f"after a rename, or never existed)."
         )
         if cfg.tag_reference_enforce == "error":
             errors.append(msg)
         elif cfg.tag_reference_enforce == "warn":
             warnings.append(msg)
+    if deprecated and cfg.tag_reference_enforce != "off":
+        warnings.append(
+            f"Deprecated positional tag(s) in implementation_plan.md: "
+            f"{', '.join(sorted(set(deprecated)))} - use the stable slug form "
+            f"(e.g. `[G-no-placeholders-in-prod]`) instead of `[G-TabooN]`."
+        )
 
     warn = _artifact_language_warning(content, cfg, "plan")
     if warn:

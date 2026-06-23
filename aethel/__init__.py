@@ -7,4 +7,4 @@ __version__ = "1.2.0"
 # compared by `check_core_consistency` to tell a stale workspace ("run aethel
 # update") from a hand-edited one. Bumped only when the core block's rules change,
 # independently of package patch releases — so it is a separate constant.
-CORE_VERSION = "1.2.0"
+CORE_VERSION = "1.3.0"

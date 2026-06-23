@@ -43,24 +43,71 @@ def test_unresolved_taboo_tag_blocks_when_error(tmp_path):
     assert any("G-Taboo99" in e for e in errs)
 
 
-def test_resolved_taboo_tag_is_clean(tmp_path):
+def test_resolved_legacy_tag_has_no_error_but_warns_deprecated(tmp_path):
+    """A legacy `[G-Taboo6]` still resolves (no error) but is nudged toward the slug form."""
     _write_aethel_md(tmp_path, taboo_count=8)
     _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[G-Taboo6]` fail-fast.")
     errs, warns = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
-    assert errs == [] and not any("G-Taboo" in w for w in warns)
+    assert errs == []
+    assert not any("Unresolved" in w for w in warns)
+    assert any("Deprecated" in w and "G-Taboo6" in w for w in warns)
 
 
-def test_renumbering_invalidates_a_previously_valid_tag(tmp_path):
-    """The exact real failure mode: a plan written against an 8-taboo AETHEL.md references
-    [G-Taboo8]; AETHEL.md is later trimmed to 6 taboos. The reference must now be flagged."""
+def test_renumbering_invalidates_a_previously_valid_legacy_tag(tmp_path):
+    """Legacy positional fragility (why slugs exist): a plan referencing [G-Taboo8] against an
+    8-taboo file is flagged unresolved once the file is trimmed to 6."""
     _write_aethel_md(tmp_path, taboo_count=8)
     _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[G-Taboo8]` linter compliance.")
     errs, warns = check_plan_file(str(tmp_path), AethelConfig())
-    assert errs == [] and not warns  # valid at the time
+    assert errs == [] and not any("Unresolved" in w for w in warns)  # valid at the time
 
     _write_aethel_md(tmp_path, taboo_count=6)
     errs, warns = check_plan_file(str(tmp_path), AethelConfig())
-    assert any("G-Taboo8" in w for w in warns), "stale tag after renumbering was not caught"
+    assert any("Unresolved" in w and "G-Taboo8" in w for w in warns)
+
+
+def test_slug_tag_resolves(tmp_path):
+    _write_aethel_md(tmp_path, taboo_count=8)  # titles are "Taboo N" -> slug "taboo-n"
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[G-taboo-3]` resolves by identity.")
+    errs, warns = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == [] and not any("Unresolved" in w or "Deprecated" in w for w in warns)
+
+
+def test_unknown_slug_is_flagged(tmp_path):
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[G-no-such-rule]` typo or renamed.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert any("Unresolved" in e and "G-no-such-rule" in e for e in errs)
+
+
+def test_reorder_keeps_slug_valid(tmp_path):
+    """A slug references a rule by identity, so reordering the list does NOT break it (the win
+    over the positional form, which would have re-pointed)."""
+    (tmp_path / "AETHEL.md").write_text(
+        "# Rulebook\n\n## 5. Critical Coding Taboos\n\n"
+        "1. **Alpha Rule**: a.\n2. **Beta Rule**: b.\n", encoding="utf-8",
+    )
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[G-beta-rule]` stays valid.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == []
+    # swap order: Beta is now item 1 - slug still resolves, a positional [G-Taboo2] would not have.
+    (tmp_path / "AETHEL.md").write_text(
+        "# Rulebook\n\n## 5. Critical Coding Taboos\n\n"
+        "1. **Beta Rule**: b.\n2. **Alpha Rule**: a.\n", encoding="utf-8",
+    )
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == []
+
+
+def test_rule_code_slug_resolves(tmp_path):
+    """`[G-gw-1]` resolves against a heading rule code `(GW-1)`, not only §5 taboo titles."""
+    (tmp_path / "AETHEL.md").write_text(
+        "# Rulebook\n\n## 4. Git Commit & Workflow Protocol (GW-1)\n\nrules.\n\n"
+        "## 5. Critical Coding Taboos\n\n1. **Some Taboo**: x.\n", encoding="utf-8",
+    )
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[G-gw-1]` commit protocol.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == []
 
 
 def test_off_disables_the_check(tmp_path):

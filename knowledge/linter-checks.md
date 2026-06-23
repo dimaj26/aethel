@@ -28,11 +28,14 @@ the active session dir when `.aethel/CURRENT` exists, else the workspace root (b
 see [session lifecycle](session-lifecycle.md)).
 - `check_plan_file` — `implementation_plan.md` has the required H2s (User Review Required,
   Open Questions, Proposed Changes, Verification Plan) + optional language policy. Also resolves
-  any `[G-Taboo<N>]` tag (the "Contextual Constraints" namespace convention from AETHEL.md §2)
-  against this workspace's own `AETHEL.md` taboo numbering — a tag surviving a later renumbering
-  unresolved is exactly the failure mode the convention claims to prevent, so it's the one tag
-  form checked mechanically. Severity `[plan] tag_reference_enforce` (library default `warn`;
-  this repo promotes it to `error`, since it defines the convention).
+  `[G-]` reference tags (the "Contextual Constraints" namespace convention from AETHEL.md §2)
+  against this workspace's own `AETHEL.md`. A tag is a **stable slug** matched by identity against
+  the valid `[G-]` slug set — §5 taboo titles (`N. **Title**` → slug) plus heading rule codes
+  (`(GW-1)` → `gw-1`), derived mechanically so there is no second list to drift. The legacy
+  positional `[G-Taboo<N>]` still resolves (by §5 number) but is reported as a **deprecation
+  warning**, since it silently re-points when §5 is reordered. An unresolved tag (bad slug, or a
+  legacy number absent from §5) is routed by `[plan] tag_reference_enforce` (library default
+  `warn`; this repo promotes it to `error`, since it defines the convention).
 - `check_checklist_file` — `task.md` items are all complete and the last item runs the linter.
 - `check_report_file` — `walkthrough.md` has Changes made / What was tested / Validation results.
 

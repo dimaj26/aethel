@@ -3,6 +3,16 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Changed
+- **`[G-]` reference tags are now stable slugs, not list positions** (core convention; `CORE_VERSION`
+  1.2.0 → 1.3.0). A tag like `[G-no-placeholders-in-prod]` resolves by *identity* against the valid
+  `[G-]` slug set derived mechanically from AETHEL.md — §5 taboo titles plus heading rule codes
+  (`(GW-1)` → `gw-1`) — so reordering §5 no longer silently re-points a reference (the failure the
+  old positional `[G-TabooN]` could not catch: the linter only checked that *some* taboo with that
+  number existed, never its identity). The legacy `[G-TabooN]` form still resolves but is reported as
+  a **deprecation warning**. AETHEL.md §2 + template rewritten; `knowledge/linter-checks.md` updated;
+  new slug/reorder/rule-code tests in `tests/test_tag_references.py`. See roadmap [14], ADR-adjacent.
+
 ### Added
 - **Personal profile: a live, per-user config + recipe overlay.** A machine-local `~/.aethel/`
   supplies personal defaults across all of a user's projects. `~/.aethel/profile.toml` is merged on

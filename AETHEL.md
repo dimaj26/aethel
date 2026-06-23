@@ -82,8 +82,8 @@ Every complex plan must be structured as follows:
 - Logic, risks, edge cases.
 
 ## Contextual Constraints (CC)
-- Reference specific rules using the namespace tag format to save tokens and prevent line-shift errors:
-  - `[G-xxx]` for Orchestrator Rules (e.g. `[G-Taboo1]`, `[G-GW1]`) from AETHEL.md.
+- Reference specific rules using the namespace tag format to save tokens and prevent line-shift errors. A tag is a **stable slug naming its target by identity, never its list position** (lowercase, non-alphanumeric runs → single hyphen):
+  - `[G-xxx]` for Orchestrator Rules from AETHEL.md — slug of the rule's title or code (e.g. `[G-no-placeholders-in-prod]` for the §5 taboo "No Placeholders in Prod", `[G-gw-1]` for the GW-1 protocol). The legacy positional form `[G-TabooN]` still resolves but is **deprecated** (it silently re-points when §5 is reordered) and the linter warns on it.
   - `[C-xxx]` for index entries in CONTEXT.md.
   - `[K-xxx]` for Domain Rules from a `knowledge/*.md` topic file (e.g. `[K-arch]`).
 
