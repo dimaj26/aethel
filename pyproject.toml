@@ -29,10 +29,20 @@ aethel = "aethel.cli:main"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["aethel*"]
+include = ["aethel"]
 
 [tool.setuptools.package-data]
-aethel = ["templates/**"]
+# `glob(..., recursive=True)` (what setuptools uses to expand these) skips dotfiles/dotdirs by
+# default, so the hidden `.agents/` plugin tree and `.ruff.toml`/`.eslintrc.json` recipe configs
+# need their own explicit patterns - `templates/**` alone silently drops them from the wheel.
+aethel = [
+    "templates/**",
+    "templates/.agents/**",
+    "templates/recipes/*/.*",
+]
+
+[tool.setuptools.exclude-package-data]
+aethel = ["templates/recipes/python/.ruff_cache/**"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -3,6 +3,22 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased] - 2026-06-23
+### Fixed
+- **Built wheel shipped with zero files from `aethel/templates/` (release-blocking).** Found while
+  dry-running the first PyPI publish: `aethel init`/`update` would have been completely broken for
+  anyone installing from PyPI. Two compounding bugs: (1) `[tool.setuptools.packages.find] include
+  = ["aethel*"]` is a wildcard that also matched dotted names like `aethel.templates`, so
+  setuptools treated the data directory as empty Python sub-packages instead of `aethel`
+  package-data — fixed to the exact name `["aethel"]`. (2) `MANIFEST.in`'s
+  `recursive-exclude aethel/templates **/.ruff_cache *` carried a second, unanchored bare `*`
+  pattern that silently excluded every file `graft` had just added — replaced with a scoped
+  `global-exclude */.ruff_cache/*`. Also added the hidden-file patterns
+  (`templates/.agents/**`, `templates/recipes/*/.*`) that `templates/**` alone can never match
+  (Python's `glob(..., recursive=True)` skips dotfiles/dotdirs by default), so `.agents/` plugin
+  files and `.ruff.toml`/`.eslintrc.json` recipe configs ship too. Verified end-to-end: installed
+  the built wheel into a clean venv and ran `aethel init` against a scratch directory. New
+  `tests/test_packaging.py` (one real `python -m build` integration test + two fast static checks)
+  guards both root causes.
 ### Changed
 - **PyPI distribution renamed `aethel` → `aethel-cli`.** The name `aethel` is already registered on
   PyPI by an unrelated placeholder package, so publishing under it is not possible. Only
