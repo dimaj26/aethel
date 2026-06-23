@@ -3,6 +3,13 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased] - 2026-06-23
+### Changed
+- **PyPI distribution renamed `aethel` → `aethel-cli`.** The name `aethel` is already registered on
+  PyPI by an unrelated placeholder package, so publishing under it is not possible. Only
+  `[project].name` in `pyproject.toml` changes — the installed CLI command stays `aethel`
+  (`[project.scripts]` is unaffected) and the importable module stays `import aethel`. Install
+  instructions in `aethel/cli.py`, `knowledge/README.md`, and `knowledge/decisions/0003-hook-degradation.md`
+  updated to `pipx install aethel-cli`. Roadmap [6] (PyPI publish) is unblocked by this rename.
 ### Added
 - **`aethel eject` — sanctioned divergence for the managed core block.** Previously the only
   options for the `aethel-core` managed block were "let `aethel update` own it" or "hand-edit it

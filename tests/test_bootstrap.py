@@ -69,5 +69,5 @@ def test_init_warns_when_not_importable(tmp_path, monkeypatch, capsys):
     cmd_init(argparse.Namespace(path=str(tmp_path), force=False, recipe=None))
     out = capsys.readouterr().out
     # Diagnoses + offers an install command, but never forces a dependency edit.
-    assert "pipx install aethel" in out or "pip install" in out
+    assert "pipx install aethel-cli" in out or "pip install" in out
     assert (tmp_path / "AETHEL.md").exists()  # init still completed

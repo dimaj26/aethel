@@ -40,7 +40,7 @@ except ImportError:
     # only when the import succeeds.
     hint = (
         "'aethel' is not importable by " + sys.executable + ". "
-        "Install it: 'pipx install aethel' (recommended) or 'pip install -e .' in the repo."
+        "Install it: 'pipx install aethel-cli' (recommended) or 'pip install -e .' in the repo."
     )
     if os.environ.get("AETHEL_REQUIRE"):
         print("Aethel ERROR: " + hint)
@@ -456,7 +456,7 @@ def _check_install(dest_dir: str) -> None:
     print(
         f"\nNote: 'aethel' is not importable by the hook interpreter ({python_exe}).\n"
         "      The pre-commit hook will warn-and-skip until it is installed. To enable it:\n"
-        "        pipx install aethel        (recommended — a global CLI), or\n"
+        "        pipx install aethel-cli    (recommended — a global CLI), or\n"
         "        pip install -e .           (inside the project venv, for development).\n"
         "      Then run 'aethel doctor' to verify."
     )

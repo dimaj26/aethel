@@ -19,7 +19,7 @@ package cannot commit at all — even for changes the linter never got to inspec
 ## Decision
 A **missing install degrades to warn-and-skip (exit 0)**, not a hard failure. The wrapper prints a
 loud warning naming the interpreter (`sys.executable`) and the exact install commands
-(`pipx install aethel` / `pip install -e .`), then exits `0`. A **strict mode** is available behind
+(`pipx install aethel-cli` / `pip install -e .`), then exits `0`. A **strict mode** is available behind
 `AETHEL_REQUIRE` (any non-empty value), which restores the blocking `exit 1` — the mirror of
 `AETHEL_SKIP_SYNC` on the leniency side. Real lint violations are unaffected: `main()` runs only
 when the import succeeds, so genuine findings still exit `1`.

@@ -38,7 +38,7 @@ See [linter checks](linter-checks.md), [recipe discovery](recipes.md), and
 [spec architecture](spec-architecture.md).
 
 ## Install & bootstrap
-Recommended install is **pipx** (`pipx install aethel`) — a global CLI the pre-commit hook finds via
+Recommended install is **pipx** (`pipx install aethel-cli`) — a global CLI the pre-commit hook finds via
 `command -v aethel`, independent of any project venv; for development, `pip install -e .` inside the
 venv. The generated hook **degrades gracefully** when `aethel` is not importable: it warns and skips
 (exit 0) rather than blocking the commit, unless `AETHEL_REQUIRE` is set (strict mode, mirror of
