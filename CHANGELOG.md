@@ -4,6 +4,19 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased] - 2026-06-23
 ### Added
+- **`aethel eject` — sanctioned divergence for the managed core block.** Previously the only
+  options for the `aethel-core` managed block were "let `aethel update` own it" or "hand-edit it
+  and have the linter permanently flag it as diverged" — there was no way to make an intentional,
+  permanent exception a respected state. `aethel eject [path]` stamps the block with
+  `<!-- AETHEL:EJECTED id=aethel-core date=... -->` (`aethel/markers.py`'s `eject_block`); once
+  present, `classify_core_state` reports a new status `"ejected"` BEFORE the diverged/skew
+  structural compare, so `check_core_consistency` treats it as non-blocking (like `"source"`) and
+  `_update_aethel_md` skips refreshing the block entirely (no backup, no overwrite). `aethel eject
+  --undo` (`uneject_block`) reverses it, restoring both managed updates and divergence detection.
+  `aethel doctor` and its `_CORE_STATE_LABEL` learn the new status through the same
+  `classify_core_state` seam doctor and the linter already share. The existing "do not edit inside
+  the managed block" callout in `AETHEL.md.template` now names `eject` as the sanctioned escape
+  hatch. See [core consistency](knowledge/core-consistency.md); new `tests/test_eject.py`.
 - **Index link-annotation check.** Each `CONTEXT.md` inline link whose target resolves under the
   knowledge dir should carry an annotation (`[text](target) — note`): reachability surfaces a file,
   the one-line note is what makes an agent open the *right* one. Flagged at new

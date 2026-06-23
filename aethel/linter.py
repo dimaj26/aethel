@@ -10,6 +10,7 @@ from aethel import CORE_VERSION
 from aethel.config import AethelConfig, load_config
 from aethel.markers import (
     extract_managed_block,
+    is_ejected,
     normalize_block,
     parse_core_version,
     strip_core_version,
@@ -755,6 +756,8 @@ class CoreState(NamedTuple):
     * ``"no_template"`` — the installed library ships no core template to compare.
     * ``"no_workspace"`` — the workspace has no readable ``AETHEL.md``.
     * ``"no_block"`` — ``AETHEL.md`` exists but has no ``aethel-core`` managed block.
+    * ``"ejected"`` — the block carries an ``AETHEL:EJECTED`` stamp (`aethel eject`):
+      sanctioned divergence, structure is never compared.
     * ``"consistent"`` — block matches structure AND version.
     * ``"skew"`` — block matches structure but the version stamp differs (stale).
     * ``"diverged"`` — block structure differs from the library (hand-edited / forked).
@@ -795,6 +798,9 @@ def classify_core_state(workspace_path: str) -> CoreState:
     if ws_core is None:
         return CoreState("no_block", None, lib_version)
 
+    if is_ejected(ws_core, "aethel-core"):
+        return CoreState("ejected", parse_core_version(ws_core), lib_version)
+
     structurally_equal = (
         normalize_block(strip_core_version(ws_core)) == normalize_block(strip_core_version(lib_core))
     )
@@ -825,7 +831,7 @@ def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None)
     """
     cfg = _resolve_cfg(workspace_path, cfg)
     state = classify_core_state(workspace_path)
-    if state.status == "source":
+    if state.status in ("source", "ejected"):
         return True
     if cfg.consistency_enforce == "off" and cfg.version_skew_enforce == "off":
         return True

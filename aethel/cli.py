@@ -15,9 +15,12 @@ from aethel.linter import (
     run_linter,  # noqa: F401  (kept for backward-compatible imports)
 )
 from aethel.markers import (  # noqa: F401  (re-exported for backward-compatible imports)
+    eject_block,
     extract_managed_block,
+    is_ejected,
     parse_block_id,
     replace_managed_block,
+    uneject_block,
 )
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
@@ -485,13 +488,22 @@ def _update_aethel_md(dest_dir: str) -> None:
         copy_template("AETHEL.md.template", "AETHEL.md", dest_dir, overwrite=True)
         return
 
+    with open(aethel_path, "r", encoding="utf-8") as f:
+        current = f.read()
+
+    current_core = extract_managed_block(current, "aethel-core")
+    if current_core is not None and is_ejected(current_core, "aethel-core"):
+        print(
+            "AETHEL.md managed core block is EJECTED — skipping refresh. Run "
+            "`aethel eject --undo` to resume managed updates."
+        )
+        return
+
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = f"{aethel_path}.bak.{timestamp}"
     shutil.copy2(aethel_path, backup_path)
     print(f"Created backup of AETHEL.md at {backup_path}")
 
-    with open(aethel_path, "r", encoding="utf-8") as f:
-        current = f.read()
     # Capture installed recipes from the ORIGINAL content before any rewrite —
     # a template rewrite would erase the sentinels we detect them by.
     installed_before = _installed_recipes_from_text(current)
@@ -544,6 +556,54 @@ def cmd_update(args: argparse.Namespace) -> None:
     write_pre_commit_hook(dest_dir, "Updated")
 
     print("Central structures successfully updated.")
+
+
+def cmd_eject(args: argparse.Namespace) -> None:
+    """Opt the `aethel-core` managed block out of (or back into) `aethel update`.
+
+    Ejecting is sanctioned divergence (roadmap [10]): it stamps the block with
+    `AETHEL:EJECTED`, after which `classify_core_state` reports `"ejected"` instead
+    of comparing structure, so hand-edits stop being flagged and `_update_aethel_md`
+    leaves the block untouched. `--undo` removes the stamp, restoring both the
+    update and the diverged/skew checks.
+    """
+    dest_dir = os.path.abspath(args.path)
+    aethel_path = os.path.join(dest_dir, "AETHEL.md")
+    if not os.path.exists(aethel_path):
+        print("Error: no AETHEL.md in this workspace.")
+        sys.exit(1)
+
+    with open(aethel_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    if getattr(args, "undo", False):
+        new_content, changed = uneject_block(content, "aethel-core")
+        if not changed:
+            print("Core block is not ejected; nothing to undo.")
+            return
+        with open(aethel_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        print(
+            "Re-attached AETHEL.md managed core block (eject undone) — `aethel update` and the "
+            "core-consistency check will manage it again."
+        )
+        return
+
+    today = datetime.date.today().isoformat()
+    new_content, changed = eject_block(content, "aethel-core", today)
+    if not changed:
+        if extract_managed_block(content, "aethel-core") is None:
+            print("Error: AETHEL.md has no managed `aethel-core` block to eject.")
+            sys.exit(1)
+        print("Core block is already ejected.")
+        return
+    with open(aethel_path, "w", encoding="utf-8") as f:
+        f.write(new_content)
+    print(
+        "Ejected AETHEL.md managed core block: `aethel update` and the core-consistency check "
+        "will leave it alone from now on. You own its content — run `aethel eject --undo --path "
+        f"{args.path}` to resume managed updates (hand-edits will then be reported as divergence)."
+    )
 
 
 def cmd_start(args: argparse.Namespace) -> None:
@@ -637,6 +697,7 @@ _CORE_STATE_LABEL = {
     "no_template": "cannot compare (installed library ships no core template)",
     "no_workspace": "no AETHEL.md in this workspace",
     "no_block": "FORKED — AETHEL.md has no managed core block (run `aethel update`)",
+    "ejected": "EJECTED — sanctioned divergence (`aethel eject`); update/consistency skip it",
     "consistent": "consistent (matches the installed library core)",
     "skew": "version skew — stale core, run `aethel update`",
     "diverged": "DIVERGED — managed core block was hand-edited (run `aethel update`)",
@@ -690,6 +751,14 @@ def main() -> None:
     p_update = subparsers.add_parser("update", help="Update Aethel core files & plugins to latest version")
     p_update.add_argument("path", nargs="?", default=".", help="Workspace path to update (default: current)")
     p_update.set_defaults(func=cmd_update)
+
+    # eject subcommand: opt the managed core block out of (or back into) `aethel update`
+    p_eject = subparsers.add_parser(
+        "eject", help="Mark the managed core block as sanctioned-divergence (update/consistency skip it)"
+    )
+    p_eject.add_argument("path", nargs="?", default=".", help="Workspace path (default: current)")
+    p_eject.add_argument("--undo", action="store_true", help="Remove the eject stamp, restoring managed updates")
+    p_eject.set_defaults(func=cmd_eject)
 
     # start subcommand: open a new Route B session (reconciles the previous one)
     p_start = subparsers.add_parser("start", help="Open a new Route B session under .aethel/ (reconciles the previous one)")

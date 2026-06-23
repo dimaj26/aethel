@@ -45,6 +45,8 @@ parsed. Severities are configurable in `aethel.toml` under `[knowledge]`.
 aethel init [path]            # scaffold a workspace (AGENTS.md, AETHEL.md, CONTEXT.md, knowledge/, ...)
 aethel init --recipe python   # also deploy a stack-specific linter recipe
 aethel update [path]          # refresh the managed core block non-destructively
+aethel eject [path]           # mark the managed core block as sanctioned divergence
+aethel eject [path] --undo    # remove the eject stamp, restoring managed updates
 aethel lint [path]            # validate plan/checklist + knowledge-index integrity + hygiene
 ```
 

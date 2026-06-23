@@ -9,7 +9,8 @@ Welcome, AI Developer. This file is the official human-written orchestrator and 
 > Do NOT edit inside it. Add project-specific rules BELOW the closing marker — that content is
 > preserved across updates. Local rules may extend the core but must never contradict it: on
 > conflict, **the core wins**. If the linter reports divergence, run `aethel update` to re-sync
-> rather than hand-editing the block.
+> rather than hand-editing the block. Need a deliberate, permanent exception instead? Run
+> `aethel eject` — it stamps the block as sanctioned divergence (`aethel eject --undo` reverses it).
 
 ---
 

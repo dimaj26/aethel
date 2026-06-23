@@ -42,3 +42,14 @@ before the structural compare, so two failure modes are told apart:
 doctor` consumes the SAME `classify_core_state` to print the state for humans (see
 [project overview](README.md)), so the linter and the doctor never disagree on what the core's
 state is.
+
+## Eject (sanctioned divergence)
+`aethel eject [path]` stamps the block with `<!-- AETHEL:EJECTED id=aethel-core date=... -->`
+(right after the BEGIN marker, written by `aethel/markers.py`'s `eject_block`). Once present,
+`classify_core_state` returns status `"ejected"` BEFORE the structural compare — hand-edits stop
+being `"diverged"`, `check_core_consistency` treats it as non-blocking like `"source"`, and
+`_update_aethel_md` skips refreshing the block entirely (no backup, no overwrite) instead of
+clobbering the workspace's intentional content. `aethel eject --undo` removes the stamp
+(`uneject_block`), restoring both managed updates and divergence detection. This is the one
+sanctioned exception to CC-1's "no principled disagreement": it must be an explicit, per-workspace
+opt-in — never a library default.
