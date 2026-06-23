@@ -175,3 +175,44 @@ def test_malformed_toml_is_safe(tmp_path):
     # Fail open: defaults are used rather than crashing or relaxing rules.
     assert cfg.spec_files == list(DEFAULT_SPEC_FILES)
     assert cfg.dead_link_enforce == "error"
+
+
+# --- User profile overlay (~/.aethel/profile.toml) -------------------------------
+
+def test_profile_fills_gap_when_workspace_unset(tmp_path, monkeypatch):
+    """Profile supplies a value the workspace never sets -> profile wins over defaults."""
+    prof = tmp_path / "profile.toml"
+    prof.write_text('[language]\nreport_lang = "ru"\n', encoding="utf-8")
+    monkeypatch.setenv("AETHEL_PROFILE_PATH", str(prof))
+    cfg = load_config(str(tmp_path))  # no aethel.toml in tmp_path
+    assert cfg.report_lang == "ru"
+
+
+def test_workspace_overrides_profile(tmp_path, monkeypatch):
+    """Workspace aethel.toml is applied last, so it wins over the profile."""
+    prof = tmp_path / "profile.toml"
+    prof.write_text('[language]\nreport_lang = "ru"\n', encoding="utf-8")
+    monkeypatch.setenv("AETHEL_PROFILE_PATH", str(prof))
+    (tmp_path / "aethel.toml").write_text('[language]\nreport_lang = "en"\n', encoding="utf-8")
+    assert load_config(str(tmp_path)).report_lang == "en"
+
+
+def test_missing_profile_is_silent(tmp_path, monkeypatch):
+    monkeypatch.setenv("AETHEL_PROFILE_PATH", str(tmp_path / "does-not-exist.toml"))
+    cfg = load_config(str(tmp_path))
+    assert cfg.report_lang == "any"  # plain defaults, no exception
+
+
+def test_malformed_profile_is_silent(tmp_path, monkeypatch):
+    prof = tmp_path / "profile.toml"
+    prof.write_text("not valid toml [[ = =", encoding="utf-8")
+    monkeypatch.setenv("AETHEL_PROFILE_PATH", str(prof))
+    cfg = load_config(str(tmp_path))
+    assert cfg.report_lang == "any"  # fail-open
+
+
+def test_profile_sets_recipes_dir(tmp_path, monkeypatch):
+    prof = tmp_path / "profile.toml"
+    prof.write_text('[recipes]\ndir = "~/custom/recipes"\n', encoding="utf-8")
+    monkeypatch.setenv("AETHEL_PROFILE_PATH", str(prof))
+    assert load_config(str(tmp_path)).recipes_dir == "~/custom/recipes"

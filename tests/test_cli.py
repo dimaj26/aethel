@@ -138,3 +138,52 @@ def test_replace_returns_false_when_marker_absent():
     out, replaced = replace_managed_block(doc, "whatever", "aethel-core")
     assert replaced is False
     assert out == doc
+
+
+# --- Personal recipes (~/.aethel/recipes via discover_all_recipes) ----------------
+
+def _builtin_names():
+    from aethel.cli import discover_recipes as _d
+    return set(_d())
+
+
+def test_personal_recipe_discovered(tmp_path, monkeypatch):
+    from aethel.cli import discover_all_recipes
+    personal = tmp_path / "personal"
+    _make_recipe(personal, "mine", "recipe-mine", [".myrc"])
+    monkeypatch.setenv("AETHEL_RECIPES_DIR", str(personal))
+    found = discover_all_recipes()
+    assert "mine" in found
+    assert found["mine"]["sentinel"] == "id=recipe-mine"
+    assert found["mine"]["src_dir"] == str(personal / "mine")
+    # built-ins still present alongside the personal one
+    assert _builtin_names() <= set(found)
+
+
+def test_personal_recipe_overrides_builtin_on_name_clash(tmp_path, monkeypatch):
+    from aethel.cli import discover_all_recipes
+    personal = tmp_path / "personal"
+    _make_recipe(personal, "python", "recipe-python-custom", [".ruff.toml"])
+    monkeypatch.setenv("AETHEL_RECIPES_DIR", str(personal))
+    found = discover_all_recipes()
+    # personal wins: sentinel + src_dir come from the personal folder
+    assert found["python"]["sentinel"] == "id=recipe-python-custom"
+    assert found["python"]["src_dir"] == str(personal / "python")
+
+
+def test_malformed_personal_recipe_is_skipped_not_raised(tmp_path, monkeypatch, capsys):
+    from aethel.cli import discover_all_recipes
+    personal = tmp_path / "personal"
+    # marker-less addendum -> RecipeError if it were fatal
+    _make_recipe(personal, "broken", "recipe-broken", [".cfg"], with_marker=False)
+    monkeypatch.setenv("AETHEL_RECIPES_DIR", str(personal))
+    found = discover_all_recipes()  # must NOT raise
+    assert "broken" not in found
+    assert _builtin_names() <= set(found)  # built-ins unaffected
+    assert "Warning" in capsys.readouterr().out
+
+
+def test_missing_personal_recipes_dir_is_silent(tmp_path, monkeypatch):
+    from aethel.cli import discover_all_recipes, discover_recipes
+    monkeypatch.setenv("AETHEL_RECIPES_DIR", str(tmp_path / "nope"))
+    assert set(discover_all_recipes()) == set(discover_recipes())

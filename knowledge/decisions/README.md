@@ -15,3 +15,4 @@ historical).
 - [ADR 0001 — Retire the Memory MCP graph](0001-retire-memory-graph.md) — why structured knowledge is Markdown, not a `memory.json` graph.
 - [ADR 0002 — Navigable reachability + ADR ledger](0002-navigable-reachability.md) — orphan = reachable by navigation (transitive); ADRs surfaced via this ledger.
 - [ADR 0003 — Hook degrades on a missing install](0003-hook-degradation.md) — missing install → warn-skip (exit 0); strict mode via `AETHEL_REQUIRE`.
+- [ADR 0004 — Personal profile is a live overlay](0004-personal-profile-live-overlay.md) — `~/.aethel/` config + recipes merged live; precedence defaults < profile < workspace; fail-open.

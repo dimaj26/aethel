@@ -3,6 +3,18 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Added
+- **Personal profile: a live, per-user config + recipe overlay.** A machine-local `~/.aethel/`
+  supplies personal defaults across all of a user's projects. `~/.aethel/profile.toml` is merged on
+  every `load_config()` between the library defaults and the workspace `aethel.toml` (precedence:
+  defaults < profile < workspace `aethel.toml`), and `~/.aethel/recipes/*` is a second recipe base
+  merged with the built-ins via `discover_all_recipes()` (a personal recipe wins on a name clash).
+  Both are **live** (re-read each run, so one edit updates every project) and **fail-open** (a
+  missing/malformed profile is a no-op; a malformed personal recipe warns and is skipped rather than
+  raising). Overridable via `AETHEL_PROFILE_PATH` / `AETHEL_RECIPES_DIR` (and profile `[recipes].dir`).
+  The profile lives outside any repo, so it is never committed and never shipped — the mechanism is
+  generic to every user, the data is private and per-machine. New `knowledge/config.md`, ADR 0004;
+  tests in `tests/test_config.py` and `tests/test_cli.py`.
 
 ## [1.2.0] - 2026-06-24
 ### Added

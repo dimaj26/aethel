@@ -64,6 +64,14 @@ DEFAULT_CHANGELOG_FILE = "CHANGELOG.md"
 _VALID_ENFORCE = {"error", "warn", "off"}
 _VALID_LANG = {"en", "ru", "any"}
 
+# User-level profile: a machine-local file in the caller's home dir that supplies
+# personal defaults across ALL their projects. It is a LIVE overlay (re-read on
+# every load_config), sitting between the library defaults and the per-workspace
+# aethel.toml in precedence: workspace aethel.toml > ~/.aethel/profile.toml >
+# library defaults. It lives in $HOME, never inside a repo, so it is private and
+# per-machine by construction; a missing/malformed profile is fail-open (no-op).
+DEFAULT_PROFILE_PATH = "~/.aethel/profile.toml"
+
 
 @dataclass
 class AethelConfig:
@@ -96,6 +104,7 @@ class AethelConfig:
     require_walkthrough: str = "error"  # error | warn | off (commit-time Route-B report guard)
     report_sections: list[str] = field(default_factory=lambda: list(DEFAULT_REPORT_SECTIONS))
     aethel_dir: str = ".aethel"  # gitignored root of the per-session working-dir tree
+    recipes_dir: str | None = None  # extra recipe base (personal recipes); None = none configured
 
 
 def _coerce_enforce(value: object, fallback: str) -> str:
@@ -112,24 +121,44 @@ def _coerce_str_list(value: object, fallback: list[str]) -> list[str]:
     return fallback
 
 
-def load_config(workspace_path: str = ".") -> AethelConfig:
-    """Load ``aethel.toml`` from the workspace root, merged over defaults.
+def _read_toml_file(path: str) -> dict:
+    """Parse a TOML file into a dict, fail-open.
 
-    A missing or malformed file yields the default config (backward-compatible).
-    Any key absent from the file keeps its default value.
+    Returns ``{}`` for a missing, unreadable, or malformed file so neither the
+    workspace config nor the user profile can break validation by being broken.
+    """
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "rb") as f:
+            return tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def profile_path() -> str:
+    """Resolve the user-profile path: ``AETHEL_PROFILE_PATH`` env (test seam +
+    power-user override) else the expanded ``~/.aethel/profile.toml``."""
+    return os.environ.get("AETHEL_PROFILE_PATH") or os.path.expanduser(DEFAULT_PROFILE_PATH)
+
+
+def load_config(workspace_path: str = ".") -> AethelConfig:
+    """Load config as a layered overlay over the library defaults.
+
+    Precedence (last writer wins): library defaults < user profile
+    (``~/.aethel/profile.toml``) < workspace ``aethel.toml``. The profile is a
+    LIVE overlay, re-read on every call. Any missing/malformed file is a no-op
+    (fail-open), so behaviour is backward-compatible when neither exists.
     """
     cfg = AethelConfig()
-    config_path = os.path.join(workspace_path, "aethel.toml")
-    if not os.path.exists(config_path):
-        return cfg
+    _apply_overrides(cfg, _read_toml_file(profile_path()))
+    _apply_overrides(cfg, _read_toml_file(os.path.join(workspace_path, "aethel.toml")))
+    return cfg
 
-    try:
-        with open(config_path, "rb") as f:
-            data = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
-        # Fail open: a broken config must not silently change validation rules.
-        return cfg
 
+def _apply_overrides(cfg: AethelConfig, data: dict) -> None:
+    """Merge one parsed TOML mapping onto ``cfg`` in place. Absent keys are left
+    untouched, so a later call only overrides what it actually sets."""
     structure = data.get("structure", {})
     if isinstance(structure, dict):
         cfg.structure_enforce = _coerce_enforce(structure.get("enforce"), cfg.structure_enforce)
@@ -187,4 +216,8 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
         if isinstance(aethel_dir, str) and aethel_dir:
             cfg.aethel_dir = aethel_dir
 
-    return cfg
+    recipes = data.get("recipes", {})
+    if isinstance(recipes, dict):
+        rdir = recipes.get("dir")
+        if isinstance(rdir, str) and rdir:
+            cfg.recipes_dir = rdir

@@ -8,7 +8,7 @@ from typing import Any
 
 import aethel
 from aethel import session
-from aethel.config import load_config
+from aethel.config import _read_toml_file, load_config, profile_path
 from aethel.linter import (
     check_report_file,
     classify_core_state,
@@ -308,16 +308,52 @@ def discover_recipes(base_dir: str | None = None) -> dict[str, dict[str, Any]]:
                 f"Recipe '{name}' addendum has no AETHEL:MANAGED:BEGIN id=... marker."
             )
 
-        recipes[name] = {"sentinel": f"id={block_id}", "configs": configs}
+        recipes[name] = {"sentinel": f"id={block_id}", "configs": configs, "src_dir": rdir}
+    return recipes
+
+
+PERSONAL_RECIPES_DIRNAME = os.path.join("~", ".aethel", "recipes")
+
+
+def _personal_recipes_dir() -> str:
+    """Resolve the user's personal recipe base, the same single ``~/.aethel/``
+    location as the config profile. Precedence: ``AETHEL_RECIPES_DIR`` env
+    (test seam + override) > profile ``[recipes].dir`` > ``~/.aethel/recipes``."""
+    env = os.environ.get("AETHEL_RECIPES_DIR")
+    if env:
+        return os.path.expanduser(env)
+    rdir = _read_toml_file(profile_path()).get("recipes", {})
+    if isinstance(rdir, dict) and isinstance(rdir.get("dir"), str) and rdir["dir"]:
+        return os.path.expanduser(rdir["dir"])
+    return os.path.expanduser(PERSONAL_RECIPES_DIRNAME)
+
+
+def discover_all_recipes() -> dict[str, dict[str, Any]]:
+    """Built-in recipes merged with the user's personal ones.
+
+    Personal recipes (``~/.aethel/recipes/*``) win on a name clash — they are the
+    user's deliberate override. The personal base is fail-OPEN: a malformed folder
+    there warns and is skipped rather than bricking every command system-wide
+    (unlike a built-in ``RecipeError``, which is a packaging bug and stays fatal)."""
+    recipes = discover_recipes()
+    personal_base = _personal_recipes_dir()
+    if not os.path.isdir(personal_base):
+        return recipes
+    try:
+        personal = discover_recipes(base_dir=personal_base)
+    except RecipeError as e:
+        print(f"Warning: skipping malformed personal recipe(s) in {personal_base}: {e}")
+        return recipes
+    recipes.update(personal)  # personal wins on name clash
     return recipes
 
 
 def apply_recipe(recipe: str, dest_dir: str, force: bool) -> None:
-    meta = discover_recipes().get(recipe)
+    meta = discover_all_recipes().get(recipe)
     if meta is None:
         print(f"Error: Recipe '{recipe}' templates not found.")
         return
-    recipe_src_dir = os.path.join(TEMPLATES_DIR, RECIPES_DIRNAME, recipe)
+    recipe_src_dir = meta["src_dir"]
 
     print(f"Deploying standard rules and configurations for recipe '{recipe}'...")
     for fname in meta["configs"]:
@@ -338,10 +374,12 @@ def apply_recipe(recipe: str, dest_dir: str, force: bool) -> None:
 def _ensure_recipe_addendum(recipe: str, dest_dir: str) -> None:
     """Append the recipe addendum to AETHEL.md unless its managed block is
     already present (idempotent)."""
-    addendum_src = os.path.join(TEMPLATES_DIR, RECIPES_DIRNAME, recipe, ADDENDUM_NAME)
     aethel_path = os.path.join(dest_dir, "AETHEL.md")
-    meta = discover_recipes().get(recipe)
-    if meta is None or not (os.path.exists(addendum_src) and os.path.exists(aethel_path)):
+    meta = discover_all_recipes().get(recipe)
+    if meta is None:
+        return
+    addendum_src = os.path.join(meta["src_dir"], ADDENDUM_NAME)
+    if not (os.path.exists(addendum_src) and os.path.exists(aethel_path)):
         return
     sentinel = meta["sentinel"]
     try:
@@ -365,7 +403,7 @@ def _installed_recipes_from_text(aethel_content: str) -> list[str]:
     may drop a recipe's config file yet keep its rules, and vice versa.
     """
     return [
-        name for name, meta in discover_recipes().items()
+        name for name, meta in discover_all_recipes().items()
         if meta["sentinel"] in aethel_content
     ]
 
@@ -434,7 +472,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     # 7. Copy stack-specific linter recipes if requested
     recipe = getattr(args, "recipe", None)
     if recipe:
-        available = discover_recipes()
+        available = discover_all_recipes()
         if recipe not in available:
             names = ", ".join(sorted(available)) or "(none found)"
             print(f"Error: unknown recipe '{recipe}'. Available recipes: {names}")
