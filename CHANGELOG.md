@@ -3,18 +3,18 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+
+## [1.1.1] - 2026-06-24
+First release built and shipped through the new tag-triggered Trusted Publishing workflow
+(`v1.1.1` → `.github/workflows/publish.yml`). 1.1.0's wheel was built and uploaded manually from
+commit `fc30ac2`, BEFORE the fixes below landed — so 1.1.0 on PyPI does not actually contain them;
+this is their first real release.
 ### Added
 - **`.github/workflows/publish.yml`** — builds the sdist/wheel and publishes to PyPI via
   [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC, `id-token: write`) on
-  any `v*.*.*` tag push. No token/secret is stored anywhere; requires a one-time "pending
+  any `v*.*.*` tag push. No token/secret is stored anywhere; required a one-time "pending
   publisher" registration for `aethel-cli` on pypi.org (repo + workflow filename `publish.yml` +
-  the `pypi` environment) before the first tag-triggered run.
-
-## [1.1.0] - 2026-06-23
-**First PyPI release**, published manually as `aethel-cli` 1.1.0
-(https://pypi.org/project/aethel-cli/1.1.0/) — verified by installing the published package into
-a clean venv and running `aethel version`/`aethel init`. Future releases use the tag-triggered
-Trusted Publishing workflow above instead of a manual `twine upload`.
+  the `pypi` environment).
 - **AETHEL.md §6 note on gitignored content visibility.** `.gitignore`-matched content (e.g. this
   repo's `_nogit_*` convention) is invisible to default `Glob`/`Grep` (ripgrep respects
   `.gitignore` regardless of git-tracking status — confirmed empirically, force-adding a file
@@ -25,15 +25,16 @@ Trusted Publishing workflow above instead of a manual `twine upload`.
   question already answered by this file, prior instruction, or established convention should be
   acted on directly, not re-confirmed — a written, persistent rule rather than a one-session
   behavioral note, so it survives every future session/agent reading this file.
-- **Release-readiness test layer (closes the structural gap behind the packaging bug above).**
-  Every existing test ran via `pip install -e .`/`python -m aethel.cli` from the source checkout
-  - an editable install never goes through `package_data`/`MANIFEST.in` at all, so a packaging
-  bug was structurally invisible. New `tests/conftest.py`'s session-scoped `installed_aethel_cli`
-  fixture builds the wheel once and installs it into one throwaway venv; `tests/test_release_smoke.py`
-  (9 tests: `init`/`lint`/`doctor`/`version`/`eject`+`--undo`/`start`+`done`/`update`, both
-  recipes) and `tests/test_scenario_projects.py` (4 cognitive scenarios: non-ASCII authored
-  content, an interrupted session archived as `_incomplete`, eject surviving further hand-edits,
-  a full JS-recipe cycle) now run against the REAL installed console script, never source.
+- **Release-readiness test layer (closes the structural gap behind the packaging bug fixed in
+  1.1.0).** Every existing test ran via `pip install -e .`/`python -m aethel.cli` from the source
+  checkout - an editable install never goes through `package_data`/`MANIFEST.in` at all, so a
+  packaging bug was structurally invisible. New `tests/conftest.py`'s session-scoped
+  `installed_aethel_cli` fixture builds the wheel once and installs it into one throwaway venv;
+  `tests/test_release_smoke.py` (9 tests: `init`/`lint`/`doctor`/`version`/`eject`+`--undo`/
+  `start`+`done`/`update`, both recipes) and `tests/test_scenario_projects.py` (4 cognitive
+  scenarios: non-ASCII authored content, an interrupted session archived as `_incomplete`, eject
+  surviving further hand-edits, a full JS-recipe cycle) now run against the REAL installed console
+  script, never source.
 ### Fixed
 - **`aethel lint`/CLI crashed under a non-UTF-8 console (e.g. plain `cp1251`/`cp1252` Windows
   terminal) on any unencodable character in authored Markdown** (an arrow in a task-checklist
@@ -55,6 +56,12 @@ Trusted Publishing workflow above instead of a manual `twine upload`.
   the lint algorithm) failed on a merely-busy machine with no code change (confirmed via
   `git stash`). Loosened to `< 5.0s` - generous enough to stop being flaky while still catching a
   genuine regression.
+
+## [1.1.0] - 2026-06-23
+**First PyPI release**, published manually as `aethel-cli` 1.1.0
+(https://pypi.org/project/aethel-cli/1.1.0/) — verified by installing the published package into
+a clean venv and running `aethel version`/`aethel init`.
+### Fixed
 - **Built wheel shipped with zero files from `aethel/templates/` (release-blocking).** Found while
   dry-running the first PyPI publish: `aethel init`/`update` would have been completely broken for
   anyone installing from PyPI. Two compounding bugs: (1) `[tool.setuptools.packages.find] include
