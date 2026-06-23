@@ -22,6 +22,12 @@ artifact_lang = "any"  # implementation_plan.md / task.md (no check)
 enforce = "error"            # staging code without a spec update blocks the commit
 require_changelog = "error"  # editing a rule file (AETHEL.md) without CHANGELOG blocks
 
+# `[G-TabooN]` tags in implementation_plan.md must resolve to a real taboo in THIS repo's own
+# AETHEL.md - this repo defines the convention, so it must enforce it on itself, not merely
+# suggest it. Library default stays "warn" (CC-1: workspaces choose their own strictness).
+[plan]
+tag_reference_enforce = "error"
+
 [knowledge]
 # Every knowledge/*.md must be REACHABLE by navigation from CONTEXT.md (transitively);
 # an unreachable file is unsurfaced = dead knowledge. Now honest as "error" because

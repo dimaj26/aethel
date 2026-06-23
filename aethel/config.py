@@ -70,6 +70,7 @@ class AethelConfig:
     structure_enforce: str = "error"  # error | warn | off
     context_headers: list[str] = field(default_factory=lambda: list(DEFAULT_CONTEXT_HEADERS))
     aethel_headers: list[str] = field(default_factory=lambda: list(DEFAULT_AETHEL_HEADERS))
+    tag_reference_enforce: str = "warn"  # error | warn | off ([G-TabooN] tag resolves to a real taboo)
     artifact_lang: str = "any"  # "en" | "ru" | "any"; language check for plan/task (default: none)
     report_lang: str = "any"  # "en" | "ru" | "any"; language check for walkthrough.md (default: none)
     # Severity of the report-language check. Default "error" so a mandated language
@@ -134,6 +135,10 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
         cfg.structure_enforce = _coerce_enforce(structure.get("enforce"), cfg.structure_enforce)
         cfg.context_headers = _coerce_str_list(structure.get("context_headers"), cfg.context_headers)
         cfg.aethel_headers = _coerce_str_list(structure.get("aethel_headers"), cfg.aethel_headers)
+
+    plan = data.get("plan", {})
+    if isinstance(plan, dict):
+        cfg.tag_reference_enforce = _coerce_enforce(plan.get("tag_reference_enforce"), cfg.tag_reference_enforce)
 
     language = data.get("language", {})
     if isinstance(language, dict):

@@ -4,6 +4,17 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased]
 ### Added
+- **`[G-TabooN]` tag references are now resolved mechanically.** An independent agent audit found
+  the namespace tag convention (`[G-xxx]`/`[K-xxx]`/`[C-xxx]`, AETHEL.md §2) had zero tooling
+  behind its stated "prevents line-shift errors" rationale — a stale tag after a taboo
+  renumbering would never be caught. The convention itself stays the prescribed standard (an
+  earlier draft of this change wrongly proposed downgrading it to "optional" because practice had
+  drifted away from it — backwards: the fix for unenforced practice is enforcement, not lowering
+  the standard to match the drift). New `check_plan_file` logic resolves every `[G-Taboo<N>]` tag
+  in `implementation_plan.md` against the workspace's own `AETHEL.md` taboo numbering; severity
+  `[plan] tag_reference_enforce` (library default `warn`, this repo promotes to `error`). New
+  `tests/test_tag_references.py`, including a reproduction of the exact real failure mode (a tag
+  valid when written, invalidated by a later renumbering).
 - **Mechanical guard for the one-directional dev-env/core consistency rule.** `check_core_consistency`
   exempts this repo from comparing itself against the shipped template ("this repository IS the
   source of the core"), so nothing ever caught the actual standing violation: the template's

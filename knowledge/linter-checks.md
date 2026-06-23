@@ -27,7 +27,12 @@ All artifact checks read from the **artifact base** — `_artifact_base(workspac
 the active session dir when `.aethel/CURRENT` exists, else the workspace root (backward-compatible;
 see [session lifecycle](session-lifecycle.md)).
 - `check_plan_file` — `implementation_plan.md` has the required H2s (User Review Required,
-  Open Questions, Proposed Changes, Verification Plan) + optional language policy.
+  Open Questions, Proposed Changes, Verification Plan) + optional language policy. Also resolves
+  any `[G-Taboo<N>]` tag (the "Contextual Constraints" namespace convention from AETHEL.md §2)
+  against this workspace's own `AETHEL.md` taboo numbering — a tag surviving a later renumbering
+  unresolved is exactly the failure mode the convention claims to prevent, so it's the one tag
+  form checked mechanically. Severity `[plan] tag_reference_enforce` (library default `warn`;
+  this repo promotes it to `error`, since it defines the convention).
 - `check_checklist_file` — `task.md` items are all complete and the last item runs the linter.
 - `check_report_file` — `walkthrough.md` has Changes made / What was tested / Validation results.
 

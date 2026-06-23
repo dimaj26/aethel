@@ -86,6 +86,31 @@ def _artifact_language_warning(content: str, cfg: AethelConfig, artifact_name: s
     return None
 
 
+_TABOO_TAG_RE = re.compile(r"\[G-Taboo(\d+)\]")
+_TABOO_NUMBER_RE = re.compile(r"^(\d+)\.\s+\*\*", re.MULTILINE)
+
+
+def _unresolved_taboo_tags(content: str, workspace_path: str) -> list[str]:
+    """`[G-Taboo<N>]` references that do not resolve to an existing numbered taboo in this
+    workspace's AETHEL.md. Plain prose ("Taboo #6") survives a renumbering by re-reading the
+    file; a stale bracket tag would not - this is the actual risk the tag convention's "prevents
+    line-shift errors" claim names, so it is the one tag form worth resolving mechanically.
+    Fails OPEN (no findings) if AETHEL.md is unreadable - that absence is reported elsewhere by
+    workspace hygiene, not duplicated here.
+    """
+    tags = _TABOO_TAG_RE.findall(content)
+    if not tags:
+        return []
+    aethel_path = os.path.join(workspace_path, "AETHEL.md")
+    try:
+        with open(aethel_path, "r", encoding="utf-8") as f:
+            aethel_text = f.read()
+    except OSError:
+        return []
+    valid_numbers = set(_TABOO_NUMBER_RE.findall(aethel_text))
+    return [f"[G-Taboo{n}]" for n in tags if n not in valid_numbers]
+
+
 def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tuple[list[str], list[str]]:
     """Validates implementation_plan.md format and language."""
     cfg = _resolve_cfg(workspace_path, cfg)
@@ -106,6 +131,18 @@ def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tup
     for h2 in required_h2s:
         if not re.search(r"^##\s+" + re.escape(h2), content, re.MULTILINE):
             errors.append(f"Missing required H2 section: '## {h2}'.")
+
+    unresolved = _unresolved_taboo_tags(content, workspace_path)
+    if unresolved:
+        msg = (
+            f"Unresolved taboo tag(s) in implementation_plan.md: {', '.join(unresolved)} - "
+            f"no taboo with that number exists in this workspace's AETHEL.md (stale after a "
+            f"renumbering, or never existed)."
+        )
+        if cfg.tag_reference_enforce == "error":
+            errors.append(msg)
+        elif cfg.tag_reference_enforce == "warn":
+            warnings.append(msg)
 
     warn = _artifact_language_warning(content, cfg, "plan")
     if warn:
