@@ -21,3 +21,10 @@ artifact_lang = "any"  # implementation_plan.md / task.md (no check)
 [sync]
 enforce = "error"            # staging code without a spec update blocks the commit
 require_changelog = "error"  # editing a rule file (AETHEL.md) without CHANGELOG blocks
+
+[knowledge]
+# Every knowledge/*.md must be REACHABLE by navigation from CONTEXT.md (transitively);
+# an unreachable file is unsurfaced = dead knowledge. Now honest as "error" because
+# reachability is transitive (ADRs are reached via knowledge/decisions/README.md), so the
+# index stays curated without leaving any file invisible. See ADR 0002.
+orphan_enforce = "error"

@@ -15,14 +15,20 @@ server backing a `memory.json` JSON-Lines graph) was retired in favour of this l
   under 150 lines.
 - **`knowledge/*.md`** — atomic topic files: one layer / subsystem / bounded context each,
   ~50–200 lines, a single H1, with `name` + `description` frontmatter.
-- **`knowledge/decisions/NNNN-*.md`** — append-only ADRs for design decisions.
+- **`knowledge/decisions/NNNN-*.md`** — append-only ADRs for design decisions, indexed by the
+  ledger [knowledge/decisions/README.md](decisions/README.md). The curated index links the
+  **ledger** (one line), the ledger links each ADR — so `CONTEXT.md` stays curated while every ADR
+  stays reachable.
 
 ## Why
 A curated link index is a DAG, so the graph's cycle/typed-relation modelling was unneeded;
 `check_memory_integrity` only did structural validation, and the graph's relational querying
 (in the external MCP server) was never invoked programmatically. The guarantees that matter —
 no dead references, no orphan docs, no placeholders, spec moves with code (Route C) — are kept
-by `check_knowledge_index` (see [linter checks](linter-checks.md)).
+by `check_knowledge_index` (see [linter checks](linter-checks.md)). "Reachable" means **reachable
+by navigation, transitively** (`index → topic → ledger → ADR`), which is how an agent actually
+surfaces files — so structure can nest without forcing a flat, exhaustive index (see
+[ADR 0002](decisions/0002-navigable-reachability.md)).
 
 ## Granularity
 One file = one unit-of-change AND unit-of-retrieval. If a topic is 2–3 lines, keep it in the

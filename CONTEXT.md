@@ -21,7 +21,7 @@ topic file; design decisions are append-only ADRs under `knowledge/decisions/`.
 - [Recipe discovery](knowledge/recipes.md) — runtime discovery of stack-specific config recipes.
 
 ## Decisions (ADRs)
-- [ADR 0001 — retire the Memory MCP graph](knowledge/decisions/0001-retire-memory-graph.md) — why structured knowledge is now Markdown.
+- [Decision records (ADR ledger)](knowledge/decisions/README.md) — append-only index of ADRs; each record reachable from here (keeps this index curated).
 
 <!--
 Add one inline link per topic file under knowledge/. Every relative link here must resolve on

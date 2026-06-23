@@ -257,6 +257,55 @@ def _is_external_link(target: str) -> bool:
     return target.strip().lower().startswith(("http://", "https://", "mailto:"))
 
 
+def _local_link_target(target: str, base_dir: str) -> str | None:
+    """Resolve an inline-link target to an on-disk path, or None.
+
+    Skips external links and pure in-page anchors; strips ``#fragment``; resolves
+    relative to ``base_dir`` (the directory of the linking file). Returns the
+    normalized path only when it exists on disk."""
+    if _is_external_link(target):
+        return None
+    rel = target.split("#", 1)[0].strip().replace("\\", "/")
+    if not rel:
+        return None  # pure in-page anchor (#section)
+    resolved = os.path.normpath(os.path.join(base_dir, rel))
+    return resolved if os.path.exists(resolved) else None
+
+
+def _reachable_md(index_path: str) -> set[str]:
+    """Files reachable by navigation from the index, following inline links
+    transitively (index -> topic -> topic -> ADR). Returns normcase paths.
+
+    This models how an agent actually discovers files — it walks the link graph,
+    not just the index's first level. Cycle-safe (a visited set), and only ``.md``
+    files are *traversed* (a linked binary/dir is recorded as reachable but never
+    opened). Links resolve relative to the *linking* file's directory, so a topic
+    can surface its own children."""
+    reachable: set[str] = set()
+    visited: set[str] = set()
+    queue: list[str] = [index_path]
+    while queue:
+        current = queue.pop()
+        key = os.path.normcase(os.path.normpath(current))
+        if key in visited:
+            continue
+        visited.add(key)
+        try:
+            with open(current, "r", encoding="utf-8") as f:
+                content = f.read()
+        except OSError:
+            continue
+        base_dir = os.path.dirname(current)
+        for target in _extract_inline_links(content):
+            resolved = _local_link_target(target, base_dir)
+            if resolved is None:
+                continue
+            reachable.add(os.path.normcase(resolved))
+            if resolved.lower().endswith(".md") and os.path.normcase(resolved) not in visited:
+                queue.append(resolved)
+    return reachable
+
+
 def check_knowledge_index(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
     """Validate the Markdown knowledge index and its ``knowledge/`` topic tree.
 
@@ -290,23 +339,23 @@ def check_knowledge_index(workspace_path: str, cfg: AethelConfig | None = None) 
         if ph in content:
             print_warning(f"Knowledge index '{cfg.knowledge_index}' contains placeholder: '{ph}'.")
 
-    # Dead-link check; also record which on-disk files the index references so the
-    # orphan check below knows what is reachable.
+    # Dead-link check: the index's own curated links must resolve on disk.
     index_dir = os.path.dirname(index_path)
-    linked: set[str] = set()
     for target in _extract_inline_links(content):
         if _is_external_link(target):
             continue
         rel = target.split("#", 1)[0].strip().replace("\\", "/")
         if not rel:
             continue  # pure in-page anchor (#section)
-        resolved = os.path.normpath(os.path.join(index_dir, rel))
-        if os.path.exists(resolved):
-            linked.add(os.path.normcase(resolved))
-        elif _emit(cfg.dead_link_enforce, f"Knowledge index dead link: '{target}' does not resolve on disk."):
+        if _local_link_target(target, index_dir) is None and _emit(
+            cfg.dead_link_enforce, f"Knowledge index dead link: '{target}' does not resolve on disk."
+        ):
             has_errors = True
 
-    # Orphan check: every topic .md under the knowledge dir must be linked.
+    # Orphan check: every topic .md under the knowledge dir must be REACHABLE by
+    # navigation from the index (transitively), not merely linked from it directly.
+    # That matches how an agent surfaces files and lets the index stay curated.
+    reachable = _reachable_md(index_path)
     knowledge_root = os.path.join(workspace_path, cfg.knowledge_dir)
     if os.path.isdir(knowledge_root):
         for root, _dirs, files in os.walk(knowledge_root):
@@ -314,9 +363,9 @@ def check_knowledge_index(workspace_path: str, cfg: AethelConfig | None = None) 
                 if not fname.lower().endswith(".md"):
                     continue
                 topic = os.path.normpath(os.path.join(root, fname))
-                if os.path.normcase(topic) not in linked:
+                if os.path.normcase(topic) not in reachable:
                     topic_rel = os.path.relpath(topic, workspace_path).replace("\\", "/")
-                    if _emit(cfg.orphan_enforce, f"Orphan knowledge file: '{topic_rel}' is not linked from the index."):
+                    if _emit(cfg.orphan_enforce, f"Orphan knowledge file: '{topic_rel}' is not reachable from the index."):
                         has_errors = True
 
     if has_errors:

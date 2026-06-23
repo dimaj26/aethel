@@ -4,6 +4,15 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased] - 2026-06-23
 ### Changed
+- **Knowledge-index orphan check is now transitive (navigable reachability).** A topic is an
+  orphan only if it is unreachable by navigation from the index *transitively*
+  (`index → topic → topic → ADR`), not merely if the index does not link it directly.
+  `check_knowledge_index` now walks the inline-link graph (cycle-safe `_reachable_md`, links
+  resolved relative to each linking file). The change is strictly additive (it can only *reduce*
+  orphans), so no previously valid workspace regresses. ADRs are surfaced via a new append-only
+  ledger `knowledge/decisions/README.md` (linked once from `CONTEXT.md`), keeping the index curated
+  (AETHEL.md §7) while every ADR stays reachable; this repo promotes `[knowledge] orphan_enforce` to
+  `error`. Library default stays `warn` (CC-1). See ADR 0002; new `tests/test_reachability.py`.
 - **Report-language policy now has teeth (it can BLOCK).** Previously `[language] report_lang`
   produced only a warning, so a project-mandated report language (e.g. `report_lang = "ru"`) could
   never stop `aethel done` or a commit — both escalate only on errors. It was the lone policy

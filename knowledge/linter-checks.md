@@ -19,10 +19,16 @@ see [session lifecycle](session-lifecycle.md)).
 
 ## Knowledge-index integrity (`check_knowledge_index`)
 Replaces the retired `memory.json` graph check. The index (default `CONTEXT.md`) must exist
-and not be a placeholder; every relative **inline** link must resolve on disk (dead link =
-error by default); every `*.md` under the knowledge dir must be reachable from the index
-(orphan = warn by default). Anchors are stripped, `\`→`/` normalized, `http(s)`/`mailto`
-skipped. Reference-style links/autolinks are intentionally NOT parsed, so the index must use
+and not be a placeholder; every relative **inline** link in the index must resolve on disk
+(dead link = error by default). Every `*.md` under the knowledge dir must be **reachable by
+navigation from the index — transitively** (`index → topic → topic → ADR`), computed by a
+cycle-safe walk (`_reachable_md`) that follows inline links in every reachable file, resolving
+each relative to the *linking* file's directory. An unreachable file is unsurfaced (dead
+knowledge), flagged at `[knowledge] orphan_enforce` (warn by default). Transitive reachability
+keeps the index curated (AETHEL.md §7): ADRs are surfaced via the ledger
+[knowledge/decisions/README.md](decisions/README.md), not one link per ADR in the top index
+(see [ADR 0002](decisions/0002-navigable-reachability.md)). Anchors are stripped, `\`→`/`
+normalized, `http(s)`/`mailto` skipped; reference-style links/autolinks are NOT parsed, so use
 inline links only. Severities: `[knowledge] dead_link_enforce` / `orphan_enforce`.
 
 ## Workspace hygiene (`check_workspace_hygiene`)
