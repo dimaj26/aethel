@@ -4,6 +4,10 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased] - 2026-06-23
 ### Added
+- **Taboo #9: No Redundant Confirmation-Seeking** (`AETHEL.md` §5). Codifies that a procedural
+  question already answered by this file, prior instruction, or established convention should be
+  acted on directly, not re-confirmed — a written, persistent rule rather than a one-session
+  behavioral note, so it survives every future session/agent reading this file.
 - **Release-readiness test layer (closes the structural gap behind the packaging bug above).**
   Every existing test ran via `pip install -e .`/`python -m aethel.cli` from the source checkout
   - an editable install never goes through `package_data`/`MANIFEST.in` at all, so a packaging

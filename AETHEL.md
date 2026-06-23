@@ -116,6 +116,7 @@ Every complex plan must be structured as follows:
 6. **Fail-Fast Error Handling**: Never catch exceptions silently. Always log with tracebacks and propagate where appropriate.
 7. **Keep Context.md Under 150 Lines**: `CONTEXT.md` is a curated index — push detail down into `knowledge/*.md` topic files, do not dump it inline.
 8. **Linter Compliance**: Do not ignore warnings from the `prompt_linter.py` script. Fix them before finishing.
+9. **No Redundant Confirmation-Seeking**: If this file, a prior explicit instruction, or an established convention already answers a procedural question (commit granularity, formatting, which file something belongs in), act on it directly — do not ask the user to confirm that the documented rule should be followed. Reserve questions for genuine ambiguity: conflicting instructions, missing information needed to proceed, or an irreversible/destructive action. When unsure whether a question is redundant, check this file and recent conversation first; only ask if neither resolves it.
 
 ---
 
