@@ -3,6 +3,8 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+
+## [1.2.0] - 2026-06-24
 ### Added
 - **`[G-TabooN]` tag references are now resolved mechanically.** An independent agent audit found
   the namespace tag convention (`[G-xxx]`/`[K-xxx]`/`[C-xxx]`, AETHEL.md §2) had zero tooling
