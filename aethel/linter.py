@@ -172,10 +172,21 @@ def check_report_file(workspace_path: str, cfg: AethelConfig | None = None) -> t
             errors.append(f"Missing required section or heading: '{sec}'.")
 
     has_cyrillic = bool(CYRILLIC_CHAR_RE.search(content))
+    lang_msg: str | None = None
     if cfg.report_lang == "ru" and not has_cyrillic:
-        warnings.append("No Cyrillic characters found in report. Walkthrough should be in Russian.")
+        lang_msg = ("No Cyrillic characters found in report. Walkthrough should be in Russian "
+                    "(aethel.toml [language] report_lang).")
     elif cfg.report_lang == "en" and has_cyrillic:
-        warnings.append("Cyrillic characters found in report. Walkthrough should be in English.")
+        lang_msg = ("Cyrillic characters found in report. Walkthrough should be in English "
+                    "(aethel.toml [language] report_lang).")
+    # Route the language finding by its configured severity, like every other
+    # policy: a mandated language must be able to BLOCK, not only warn.
+    if lang_msg is not None:
+        if cfg.report_lang_enforce == "error":
+            errors.append(lang_msg)
+        elif cfg.report_lang_enforce == "warn":
+            warnings.append(lang_msg)
+        # "off" → suppressed entirely.
 
     return errors, warnings
 

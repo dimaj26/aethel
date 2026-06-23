@@ -46,5 +46,9 @@ All three are inert outside a real commit (no repo / no HEAD / nothing staged) a
   `walkthrough.md` is a per-session local artifact (gitignored). The guard stays **PURE** — it
   never writes the session manifest; marking a session done is `aethel done`'s job (see
   [session lifecycle](session-lifecycle.md)). Report language is governed by `[language]
-  report_lang` (warn-level); structure validation lives in `check_report_file` (also reachable via
-  `--stage report`).
+  report_lang` and routed by severity `[language] report_lang_enforce` (**default `error`** in
+  core — a mandated language must BLOCK, not merely warn; gated behind `report_lang != "any"`, so
+  workspaces that set no language are unaffected). An `error`-level language mismatch goes into
+  `check_report_file`'s `errors`, so it blocks both `aethel done` and the commit-time
+  `check_walkthrough_sync` guard, which escalate only on errors. Structure validation also lives in
+  `check_report_file` (reachable via `--stage report`).

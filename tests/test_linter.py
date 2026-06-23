@@ -41,10 +41,17 @@ def test_report_file_missing_summary_section_errors(tmp_path):
     assert any("Summary" in e for e in errs)
 
 
-def test_report_file_ru_language_warns(tmp_path):
+def test_report_file_ru_language_blocks_by_default(tmp_path):
+    """report_lang has teeth now: the default severity is 'error', so an English
+    body under report_lang='ru' is a blocking error, not a soft warning."""
     (tmp_path / "walkthrough.md").write_text(_VALID_REPORT, encoding="utf-8")
-    _errs, warns = check_report_file(str(tmp_path), AethelConfig(report_lang="ru"))
-    assert any("Russian" in w for w in warns)  # English body flagged at warn
+    errs, _warns = check_report_file(str(tmp_path), AethelConfig(report_lang="ru"))
+    assert any("Russian" in e for e in errs)
+    # Explicitly downgrading to warn keeps the old non-blocking behaviour.
+    _e, warns = check_report_file(
+        str(tmp_path), AethelConfig(report_lang="ru", report_lang_enforce="warn")
+    )
+    assert any("Russian" in w for w in warns)
 
 
 def test_heading_present_is_lenient():

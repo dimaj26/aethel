@@ -9,6 +9,8 @@ def test_defaults_when_no_file(tmp_path):
     assert cfg.structure_enforce == "error"
     assert cfg.artifact_lang == "any"
     assert cfg.report_lang == "any"
+    # A mandated report language must block by default (teeth in core, not opt-in).
+    assert cfg.report_lang_enforce == "error"
     assert cfg.artifact_whitelist == []
     # Spec = the Markdown knowledge layer (memory.json retired).
     assert cfg.spec_files == list(DEFAULT_SPEC_FILES)
@@ -99,7 +101,8 @@ def test_structure_and_language_overrides(tmp_path):
         'context_headers = ["Only One"]\n\n'
         '[language]\n'
         'artifact_lang = "any"\n'
-        'report_lang = "en"\n',
+        'report_lang = "en"\n'
+        'report_lang_enforce = "warn"\n',
         encoding="utf-8",
     )
     cfg = load_config(str(tmp_path))
@@ -107,6 +110,7 @@ def test_structure_and_language_overrides(tmp_path):
     assert cfg.context_headers == ["Only One"]
     assert cfg.artifact_lang == "any"
     assert cfg.report_lang == "en"
+    assert cfg.report_lang_enforce == "warn"
 
 
 def test_invalid_values_fall_back_to_defaults(tmp_path):

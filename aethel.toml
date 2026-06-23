@@ -6,8 +6,18 @@
 
 [language]
 # Session/task reports (walkthrough.md) in THIS repo must be written in Russian.
-# Coarse, terminology-friendly check: a report with no Cyrillic is flagged (warn);
-# English technical terms inside an otherwise-Russian report are fine.
+# Coarse, terminology-friendly check: a report with no Cyrillic is flagged; English
+# technical terms inside an otherwise-Russian report are fine.
 #   "ru" -> must be Russian (absence of Cyrillic flagged)
-report_lang = "ru"     # walkthrough.md (warn-level)
+# Severity defaults to "error" in core (a mandated language must block, not just warn),
+# so report_lang_enforce is intentionally NOT re-stated here.
+report_lang = "ru"     # walkthrough.md (blocks aethel done + commit)
 artifact_lang = "any"  # implementation_plan.md / task.md (no check)
+
+# Route C / spec-sync and rule->changelog pairing are mandatory in this repo (it is the
+# canonical protocol source), so promote both from the library default "warn" to "error".
+# (consistency / version_skew are no-ops here: this IS the Aethel source repo, exempt via
+#  _is_aethel_source_repo, so setting them would have no effect.)
+[sync]
+enforce = "error"            # staging code without a spec update blocks the commit
+require_changelog = "error"  # editing a rule file (AETHEL.md) without CHANGELOG blocks

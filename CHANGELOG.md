@@ -3,6 +3,17 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased] - 2026-06-23
+### Changed
+- **Report-language policy now has teeth (it can BLOCK).** Previously `[language] report_lang`
+  produced only a warning, so a project-mandated report language (e.g. `report_lang = "ru"`) could
+  never stop `aethel done` or a commit — both escalate only on errors. It was the lone policy
+  without a severity lever. Added `[language] report_lang_enforce` (`error|warn|off`), **default
+  `error` in core** (gated behind `report_lang != "any"`, so workspaces that set no language are
+  unaffected); `check_report_file` now routes the language finding by that severity, and the message
+  cites its source. As a result an English `walkthrough.md` under `report_lang = "ru"` is a blocking
+  error at `aethel done` and at the commit-time `check_walkthrough_sync` guard. This repo's
+  `aethel.toml` also promotes `[sync] enforce` and `require_changelog` to `error` (it is the
+  canonical protocol source). New `tests/test_report_lang.py`.
 ### Added
 - **`aethel version` / `aethel doctor` commands.** `aethel version` prints the package + managed-core
   versions. `aethel doctor` diagnoses a workspace — package/library/workspace core versions, the

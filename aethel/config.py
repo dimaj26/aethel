@@ -72,6 +72,10 @@ class AethelConfig:
     aethel_headers: list[str] = field(default_factory=lambda: list(DEFAULT_AETHEL_HEADERS))
     artifact_lang: str = "any"  # "en" | "ru" | "any"; language check for plan/task (default: none)
     report_lang: str = "any"  # "en" | "ru" | "any"; language check for walkthrough.md (default: none)
+    # Severity of the report-language check. Default "error" so a mandated language
+    # actually BLOCKS (a mandated rule with no teeth is theatre). Gated behind
+    # report_lang != "any", so workspaces that never set a language are unaffected.
+    report_lang_enforce: str = "error"  # error | warn | off
     artifact_whitelist: list[str] = field(default_factory=list)  # words allowed when artifact_lang == "en"
     placeholder_markers: list[str] = field(default_factory=lambda: list(DEFAULT_PLACEHOLDER_MARKERS))
     sync_enforce: str = "warn"  # error | warn | off (spec-sync drift at commit time)
@@ -134,6 +138,7 @@ def load_config(workspace_path: str = ".") -> AethelConfig:
     if isinstance(language, dict):
         cfg.artifact_lang = _coerce_lang(language.get("artifact_lang"), cfg.artifact_lang)
         cfg.report_lang = _coerce_lang(language.get("report_lang"), cfg.report_lang)
+        cfg.report_lang_enforce = _coerce_enforce(language.get("report_lang_enforce"), cfg.report_lang_enforce)
         cfg.artifact_whitelist = _coerce_str_list(language.get("whitelist"), cfg.artifact_whitelist)
 
     sync = data.get("sync", {})
