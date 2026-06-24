@@ -10,14 +10,20 @@ import json
 import os
 
 from aethel.config import AethelConfig
+import pytest
+
 from aethel.session import (
+    abandon_session,
     aethel_paths,
+    complete_session,
     current_session_dir,
+    list_sessions,
     make_run_id,
     mark_validated,
     read_manifest,
     reconcile,
     start_session,
+    switch_session,
 )
 
 
@@ -81,17 +87,43 @@ def test_reconcile_active_goes_to_incomplete(tmp_path):
     assert not os.path.isdir(os.path.join(paths["archive"], run_id))
 
 
-def test_second_start_archives_the_first(tmp_path):
+def test_second_start_keeps_the_first_live(tmp_path):
+    """Multi-slot: a second `start` no longer archives the first — both stay live;
+    CURRENT just moves to the newest."""
     ws = str(tmp_path)
     first = start_session(ws, "one")
-    mark_validated(ws)
     first_id = os.path.basename(first)
     second = start_session(ws, "two")
     assert second != first
     paths = aethel_paths(ws)
-    # First session archived (validated); CURRENT now points at the second.
-    assert os.path.isdir(os.path.join(paths["archive"], first_id))
+    # First session still live (NOT archived); CURRENT now points at the second.
+    assert os.path.isdir(os.path.join(paths["sessions"], first_id))
+    assert not os.path.isdir(os.path.join(paths["archive"], first_id))
     assert current_session_dir(ws) == second
+
+
+def test_two_active_sessions_coexist(tmp_path):
+    """Reproducer (multi-slot): opening a second session must NOT archive the first.
+
+    Two Route B tasks run in parallel; the first stays live under sessions/ and is
+    resolvable via the AETHEL_SESSION env override while CURRENT points at the second.
+    """
+    ws = str(tmp_path)
+    first = start_session(ws, "one")
+    first_id = os.path.basename(first)
+    second = start_session(ws, "two")
+
+    paths = aethel_paths(ws)
+    # First session is still LIVE (not archived to _incomplete) — concurrency.
+    assert os.path.isdir(os.path.join(paths["sessions"], first_id))
+    assert not os.path.isdir(os.path.join(paths["incomplete"], first_id))
+    # CURRENT selects the second; the env override pins the first.
+    assert current_session_dir(ws) == second
+    os.environ["AETHEL_SESSION"] = first_id
+    try:
+        assert current_session_dir(ws) == first
+    finally:
+        del os.environ["AETHEL_SESSION"]
 
 
 def test_mark_validated_flips_status(tmp_path):
@@ -102,6 +134,85 @@ def test_mark_validated_flips_status(tmp_path):
     manifest = read_manifest(session_dir)
     assert manifest["status"] == "validated"
     assert "validated_at" in manifest
+
+
+def test_session_resolution_precedence(tmp_path, monkeypatch):
+    """`session` arg > AETHEL_SESSION env > CURRENT."""
+    ws = str(tmp_path)
+    a = start_session(ws, "a")
+    b = start_session(ws, "b")  # CURRENT now b
+    a_id, b_id = os.path.basename(a), os.path.basename(b)
+    assert current_session_dir(ws) == b  # CURRENT
+    monkeypatch.setenv("AETHEL_SESSION", a_id)
+    assert current_session_dir(ws) == a  # env beats CURRENT
+    assert current_session_dir(ws, session=b_id) == b  # explicit arg beats env
+    monkeypatch.setenv("AETHEL_SESSION", "   ")
+    assert current_session_dir(ws) == b  # blank env ignored -> CURRENT
+
+
+def test_switch_repoints_current(tmp_path):
+    ws = str(tmp_path)
+    a = start_session(ws, "a")
+    start_session(ws, "b")  # CURRENT b
+    a_id = os.path.basename(a)
+    assert switch_session(ws, a_id) == a
+    assert current_session_dir(ws) == a
+
+
+def test_switch_unknown_id_fails_fast(tmp_path):
+    with pytest.raises(ValueError):
+        switch_session(str(tmp_path), "nope")
+
+
+def test_list_sessions_marks_current(tmp_path):
+    ws = str(tmp_path)
+    start_session(ws, "a")
+    b = start_session(ws, "b")
+    rows = list_sessions(ws)
+    assert [r["slug"] for r in rows] == ["a", "b"]  # sorted by run-id
+    current = [r for r in rows if r["current"]]
+    assert len(current) == 1 and current[0]["id"] == os.path.basename(b)
+
+
+def test_complete_session_archives_and_clears_current(tmp_path):
+    ws = str(tmp_path)
+    session_dir = start_session(ws, "done-me")
+    run_id = os.path.basename(session_dir)
+    dest = complete_session(ws)
+    paths = aethel_paths(ws)
+    assert dest == os.path.join(paths["archive"], run_id)
+    assert os.path.isdir(dest)
+    assert not os.path.isdir(session_dir)  # moved out of sessions/
+    assert read_manifest(dest)["status"] == "validated"
+    assert not os.path.exists(paths["current"])  # cleared
+
+
+def test_complete_session_targeted_keeps_other_current(tmp_path):
+    """Completing a non-current session by id must NOT clear CURRENT for the other."""
+    ws = str(tmp_path)
+    a = start_session(ws, "a")
+    b = start_session(ws, "b")  # CURRENT b
+    a_id = os.path.basename(a)
+    complete_session(ws, session=a_id)
+    paths = aethel_paths(ws)
+    assert os.path.isdir(os.path.join(paths["archive"], a_id))
+    assert current_session_dir(ws) == b  # CURRENT untouched
+
+
+def test_abandon_session_goes_incomplete(tmp_path):
+    ws = str(tmp_path)
+    session_dir = start_session(ws, "wip")
+    run_id = os.path.basename(session_dir)
+    dest = abandon_session(ws)
+    paths = aethel_paths(ws)
+    assert dest == os.path.join(paths["incomplete"], run_id)
+    assert os.path.isdir(dest)
+    assert not os.path.exists(paths["current"])
+
+
+def test_abandon_without_session_fails_fast(tmp_path):
+    with pytest.raises(ValueError):
+        abandon_session(str(tmp_path))
 
 
 def test_aethel_dir_is_configurable(tmp_path):

@@ -602,7 +602,7 @@ def test_scenario_l(temp_dir):
     print(f"{GREEN}[PASS] Scenario L completed successfully.{RESET}")
 
 def test_scenario_m(temp_dir):
-    print_banner("Scenario M: Per-session lifecycle (start / done / reconcile-archive)")
+    print_banner("Scenario M: Multi-slot session lifecycle (start / sessions / switch / done / abandon)")
     scen_dir = os.path.join(temp_dir, "scenario_m")
     os.makedirs(scen_dir)
 
@@ -638,44 +638,49 @@ def test_scenario_m(temp_dir):
     # 2. `aethel done` refuses without a valid report (session stays active).
     run_cmd([sys.executable, "-m", "aethel.cli", "done"], scen_dir, expected_code=1)
 
-    # 3. Author plan/task/valid report INSIDE the session dir, then `aethel done` marks validated.
-    with open(os.path.join(first_dir, "task.md"), "w", encoding="utf-8") as f:
-        f.write("- [x] done\n- [x] run prompt-linter\n")
-    with open(os.path.join(first_dir, "walkthrough.md"), "w", encoding="utf-8") as f:
-        f.write(valid_report)
-    run_cmd([sys.executable, "-m", "aethel.cli", "done"], scen_dir, expected_code=0)
-    import json as _json
-    with open(os.path.join(first_dir, "session.json"), "r", encoding="utf-8") as f:
-        assert _json.load(f)["status"] == "validated", "done did not mark the manifest validated"
-
-    # 4. A second `aethel start` reconciles the validated session into archive/<id>/, root clean.
+    # 3. Multi-slot: a SECOND `aethel start` leaves feat-one LIVE (no reconcile/archive).
     run_cmd([sys.executable, "-m", "aethel.cli", "start", "feat-two"], scen_dir)
-    assert os.path.isdir(os.path.join(aethel_dir, "archive", first_id)), \
-        "validated session not archived under archive/<id>/"
-    assert not os.path.isdir(first_dir), "validated session still in sessions/ after reconcile"
     second_id = current_session(scen_dir)
-    assert second_id != first_id, "second start reused the first run-id"
-
-    # 5. The walkthrough guard reads from the SESSION dir: code staged + task.md in the session,
-    #    no report -> blocks; +report -> passes.
     second_dir = os.path.join(aethel_dir, "sessions", second_id)
+    assert second_id != first_id, "second start reused the first run-id"
+    assert os.path.isdir(first_dir), "second start archived the first session (single-slot regression)"
+    assert os.path.isdir(second_dir), "second session dir not created"
+    assert not os.path.isdir(os.path.join(aethel_dir, "archive", "_incomplete", first_id)), \
+        "a start must not push a prior session into _incomplete/"
+
+    # 4. `aethel sessions` lists both live sessions; `aethel switch` repoints CURRENT to feat-one.
+    res = run_cmd([sys.executable, "-m", "aethel.cli", "sessions"], scen_dir)
+    assert first_id in res.stdout and second_id in res.stdout, "sessions did not list both live sessions"
+    run_cmd([sys.executable, "-m", "aethel.cli", "switch", first_id], scen_dir)
+    assert current_session(scen_dir) == first_id, "switch did not repoint CURRENT"
+
+    # 5. The walkthrough guard reads from the SELECTED session (CURRENT=feat-one): code staged +
+    #    task.md in that session, no report -> blocks; +report -> passes.
     run_cmd(["git", "add", "-A"], scen_dir)
     run_cmd(["git", "commit", "--no-verify", "-m", "chore: scaffold"], scen_dir)
-    with open(os.path.join(second_dir, "task.md"), "w", encoding="utf-8") as f:
+    with open(os.path.join(first_dir, "task.md"), "w", encoding="utf-8") as f:
         f.write("- [x] done\n- [x] run prompt-linter\n")
     with open(os.path.join(scen_dir, "module.py"), "w", encoding="utf-8") as f:
         f.write("def f():\n    return 1\n")
     run_cmd(["git", "add", "module.py"], scen_dir)
     res = run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=1)
-    assert "Walkthrough drift" in res.stdout, "guard did not read task.md from the session dir"
-    with open(os.path.join(second_dir, "walkthrough.md"), "w", encoding="utf-8") as f:
+    assert "Walkthrough drift" in res.stdout, "guard did not read task.md from the selected session dir"
+    with open(os.path.join(first_dir, "walkthrough.md"), "w", encoding="utf-8") as f:
         f.write(valid_report)
     run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
 
-    # 6. Skipping `aethel done` -> next `aethel start` archives the session as _incomplete.
-    run_cmd([sys.executable, "-m", "aethel.cli", "start", "feat-three"], scen_dir)
+    # 6. `aethel done` validates the selected session AND archives it immediately, clearing CURRENT.
+    run_cmd([sys.executable, "-m", "aethel.cli", "done"], scen_dir, expected_code=0)
+    assert os.path.isdir(os.path.join(aethel_dir, "archive", first_id)), \
+        "done did not archive the validated session under archive/<id>/"
+    assert not os.path.isdir(first_dir), "validated session still in sessions/ after done"
+    assert not os.path.exists(os.path.join(aethel_dir, "CURRENT")), "done did not clear CURRENT"
+    assert os.path.isdir(second_dir), "done archived the wrong session (feat-two should stay live)"
+
+    # 7. `aethel abandon --session <id>` archives a still-active session under _incomplete/.
+    run_cmd([sys.executable, "-m", "aethel.cli", "abandon", "--session", second_id], scen_dir)
     assert os.path.isdir(os.path.join(aethel_dir, "archive", "_incomplete", second_id)), \
-        "interrupted session not archived under archive/_incomplete/<id>/"
+        "abandon did not archive the session under archive/_incomplete/<id>/"
 
     print(f"{GREEN}[PASS] Scenario M completed successfully.{RESET}")
 

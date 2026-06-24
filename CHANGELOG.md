@@ -3,6 +3,18 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Changed
+- **Sessions are now multi-slot — parallel Route B tasks no longer stomp each other**
+  (`CORE_VERSION` 1.4.0 → 1.5.0). The old model had one global `CURRENT` and reconciled-on-`start`,
+  so opening a second task forcibly archived the first to `_incomplete/` — two agents could not work
+  one workspace. Now many live sessions coexist under `.aethel/sessions/`; the selected one resolves
+  by `--session <id>` > `AETHEL_SESSION` env > `CURRENT`. `aethel start` no longer archives the prior
+  session. Archival became explicit: `aethel done` validates **and archives immediately** to
+  `archive/<id>/`; `aethel abandon` archives to `archive/_incomplete/<id>/` (recoverable move, no
+  prompt). New verbs `aethel sessions` (list) and `aethel switch <id>`; `done`/`abandon`/`lint` take
+  `--session`. Fully backward compatible for a single-session workflow. AETHEL.md §1 + template
+  updated; `knowledge/session-lifecycle.md` rewritten; ADR 0005; `tests/test_session.py` +
+  polygon scenario M + `tests/test_scenario_projects.py`. Roadmap [16].
 
 ## [1.4.0] - 2026-06-24
 ### Changed

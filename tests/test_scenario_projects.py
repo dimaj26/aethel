@@ -36,23 +36,37 @@ def test_non_ascii_authored_content_round_trips(installed_aethel_cli, tmp_path):
     assert "Аутентификация" in topic.read_text(encoding="utf-8")
 
 
-def test_interrupted_session_is_archived_as_incomplete(installed_aethel_cli, tmp_path):
-    """A session left active without `aethel done` (e.g. a crashed agent) must be archived under
-    `_incomplete/` on the next `aethel start`, not silently lost or treated as validated."""
-    target = tmp_path / "proj_interrupted"
+def test_multi_slot_sessions_coexist_and_abandon_to_incomplete(installed_aethel_cli, tmp_path):
+    """Multi-slot: a second `aethel start` leaves the first LIVE (concurrent Route B tasks);
+    sending a session to `_incomplete/` is now the explicit `aethel abandon` verb, not a
+    side effect of the next start."""
+    target = tmp_path / "proj_multi"
     target.mkdir()
     installed_aethel_cli.run("init", str(target))
-
-    first = installed_aethel_cli.run("start", "crashed-task", "--path", str(target))
-    assert first.returncode == 0, first.stdout + first.stderr
-    # No `aethel done` here - simulates a crashed/abandoned agent mid-task.
-
-    second = installed_aethel_cli.run("start", "recovery-task", "--path", str(target))
-    assert second.returncode == 0, second.stdout + second.stderr
+    sessions_dir = target / ".aethel" / "sessions"
     incomplete_dir = target / ".aethel" / "archive" / "_incomplete"
-    assert incomplete_dir.exists() and list(incomplete_dir.iterdir()), (
-        "interrupted session was not archived as incomplete"
+
+    first = installed_aethel_cli.run("start", "task-a", "--path", str(target))
+    assert first.returncode == 0, first.stdout + first.stderr
+    second = installed_aethel_cli.run("start", "task-b", "--path", str(target))
+    assert second.returncode == 0, second.stdout + second.stderr
+
+    # Both sessions are live; nothing was forced into _incomplete by the second start.
+    assert len(list(sessions_dir.iterdir())) == 2, "second start did not keep the first session live"
+    assert not (incomplete_dir.exists() and list(incomplete_dir.iterdir())), (
+        "a start must not archive a prior session under multi-slot"
     )
+
+    # `aethel sessions` lists both; `aethel abandon` moves the selected (CURRENT=task-b) out.
+    listed = installed_aethel_cli.run("sessions", str(target))
+    assert listed.returncode == 0 and "task-a" in listed.stdout and "task-b" in listed.stdout
+
+    abandoned = installed_aethel_cli.run("abandon", "--path", str(target))
+    assert abandoned.returncode == 0, abandoned.stdout + abandoned.stderr
+    assert incomplete_dir.exists() and list(incomplete_dir.iterdir()), (
+        "abandon did not archive the session as incomplete"
+    )
+    assert len(list(sessions_dir.iterdir())) == 1, "abandon should leave the other session live"
 
 
 def test_eject_survives_further_hand_edits(installed_aethel_cli, tmp_path):

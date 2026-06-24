@@ -93,14 +93,34 @@ def _read_current_id(workspace_path: str, cfg: AethelConfig) -> str | None:
     return run_id or None
 
 
-def current_session_dir(workspace_path: str, cfg: AethelConfig | None = None) -> str | None:
-    """The active session directory, or ``None`` when no session is open.
+def _active_run_id(
+    workspace_path: str, cfg: AethelConfig, session: str | None = None
+) -> str | None:
+    """The selected run-id under multi-slot resolution.
 
-    Resolves CURRENT to ``sessions/<id>/`` and returns it only if that directory
-    actually exists (a dangling pointer reads as "no session").
+    Precedence: an explicit ``session`` argument > the ``AETHEL_SESSION`` env
+    override (per-agent pinning) > the shared ``CURRENT`` pointer. An empty or
+    whitespace-only selector at any tier is ignored and falls through, so a
+    blank ``AETHEL_SESSION`` never masks ``CURRENT``.
+    """
+    for candidate in (session, os.environ.get("AETHEL_SESSION")):
+        if candidate and candidate.strip():
+            return candidate.strip()
+    return _read_current_id(workspace_path, cfg)
+
+
+def current_session_dir(
+    workspace_path: str, cfg: AethelConfig | None = None, session: str | None = None
+) -> str | None:
+    """The selected session directory, or ``None`` when none resolves.
+
+    Resolves the selector (see ``_active_run_id``) to ``sessions/<id>/`` and
+    returns it only if that directory actually exists — a dangling ``CURRENT``,
+    a stale ``AETHEL_SESSION``, or an already-archived id all read as "no
+    session" (fail closed to the root-fallback in the linter).
     """
     cfg = _resolve_cfg(workspace_path, cfg)
-    run_id = _read_current_id(workspace_path, cfg)
+    run_id = _active_run_id(workspace_path, cfg, session)
     if run_id is None:
         return None
     session_dir = os.path.join(aethel_paths(workspace_path, cfg)["sessions"], run_id)
@@ -152,15 +172,75 @@ def reconcile(workspace_path: str, cfg: AethelConfig | None = None) -> str | Non
         _clear_current(paths)
         return None
 
-    status = read_manifest(session_dir).get("status")
-    dest_parent = paths["archive"] if status == "validated" else paths["incomplete"]
+    validated = read_manifest(session_dir).get("status") == "validated"
+    return archive_session(workspace_path, run_id, incomplete=not validated, cfg=cfg)
+
+
+def archive_session(
+    workspace_path: str, run_id: str, *, incomplete: bool, cfg: AethelConfig | None = None
+) -> str:
+    """Move ``sessions/<run_id>/`` into the archive (a recoverable directory move).
+
+    ``incomplete=False`` → ``archive/<id>/`` (a completed/validated session);
+    ``incomplete=True`` → ``archive/_incomplete/<id>/`` (abandoned/interrupted).
+    Clears ``CURRENT`` iff it pointed at this id, so the selector never dangles.
+    Raises ``ValueError`` for an unknown session id (fail-fast).
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    paths = aethel_paths(workspace_path, cfg)
+    session_dir = os.path.join(paths["sessions"], run_id)
+    if not os.path.isdir(session_dir):
+        raise ValueError(f"No such session: {run_id}")
+
+    dest_parent = paths["incomplete"] if incomplete else paths["archive"]
     os.makedirs(dest_parent, exist_ok=True)
     dest = os.path.join(dest_parent, run_id)
     if os.path.exists(dest):
         shutil.rmtree(dest)
     shutil.move(session_dir, dest)
-    _clear_current(paths)
+    if _read_current_id(workspace_path, cfg) == run_id:
+        _clear_current(paths)
     return dest
+
+
+def list_sessions(workspace_path: str, cfg: AethelConfig | None = None) -> list[dict[str, Any]]:
+    """Every live session under ``sessions/``, sorted by run-id (chronological).
+
+    Each entry merges the manifest with ``current=True`` for the one ``CURRENT``
+    selects, so a caller can render the active marker without re-reading the
+    pointer. Archived sessions are intentionally excluded.
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    sessions_dir = aethel_paths(workspace_path, cfg)["sessions"]
+    if not os.path.isdir(sessions_dir):
+        return []
+    current = _read_current_id(workspace_path, cfg)
+    out: list[dict[str, Any]] = []
+    for run_id in sorted(os.listdir(sessions_dir)):
+        session_dir = os.path.join(sessions_dir, run_id)
+        if not os.path.isdir(session_dir):
+            continue
+        manifest = read_manifest(session_dir)
+        manifest.setdefault("id", run_id)
+        manifest["current"] = run_id == current
+        out.append(manifest)
+    return out
+
+
+def switch_session(workspace_path: str, run_id: str, cfg: AethelConfig | None = None) -> str:
+    """Point ``CURRENT`` at an existing live session. Returns its directory.
+
+    Resolves by exact run-id only; an unknown id raises ``ValueError`` (no
+    fuzzy guessing — fail-fast).
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    paths = aethel_paths(workspace_path, cfg)
+    session_dir = os.path.join(paths["sessions"], run_id)
+    if not os.path.isdir(session_dir):
+        raise ValueError(f"No such session: {run_id}")
+    with open(paths["current"], "w", encoding="utf-8") as f:
+        f.write(run_id + "\n")
+    return session_dir
 
 
 def _clear_current(paths: dict[str, str]) -> None:
@@ -184,10 +264,12 @@ def start_session(
     """Reconcile the prior session (if any) and open a fresh one.
 
     Creates ``sessions/<new-id>/`` with an ``active`` manifest and rewrites
-    CURRENT to point at it. Returns the new session directory.
+    CURRENT to point at it. Multi-slot: the prior session is left LIVE under
+    ``sessions/`` (resolvable via ``AETHEL_SESSION``), not reconciled/archived —
+    archival is now an explicit verb (``aethel done`` / ``aethel abandon``).
+    Returns the new session directory.
     """
     cfg = _resolve_cfg(workspace_path, cfg)
-    reconcile(workspace_path, cfg)
 
     paths = aethel_paths(workspace_path, cfg)
     os.makedirs(paths["sessions"], exist_ok=True)
@@ -210,14 +292,17 @@ def start_session(
     return session_dir
 
 
-def mark_validated(workspace_path: str, cfg: AethelConfig | None = None) -> str:
-    """Flip the active session's manifest to ``status=validated``.
+def mark_validated(
+    workspace_path: str, cfg: AethelConfig | None = None, session: str | None = None
+) -> str:
+    """Flip the selected session's manifest to ``status=validated`` (PURE).
 
-    Raises ``ValueError`` when no session is open (fail-fast: ``aethel done``
-    has nothing to mark). Returns the session directory.
+    Stays a pure status flip — it never archives — so it composes under both
+    ``complete_session`` (done) and the legacy ``reconcile`` path. Raises
+    ``ValueError`` when no session resolves (fail-fast). Returns the session dir.
     """
     cfg = _resolve_cfg(workspace_path, cfg)
-    session_dir = current_session_dir(workspace_path, cfg)
+    session_dir = current_session_dir(workspace_path, cfg, session)
     if session_dir is None:
         raise ValueError("No active Aethel session to validate (run `aethel start` first).")
     manifest = read_manifest(session_dir)
@@ -225,3 +310,33 @@ def mark_validated(workspace_path: str, cfg: AethelConfig | None = None) -> str:
     manifest["validated_at"] = _utc_now()
     write_manifest(session_dir, manifest)
     return session_dir
+
+
+def complete_session(
+    workspace_path: str, cfg: AethelConfig | None = None, session: str | None = None
+) -> str:
+    """``aethel done``: validate the selected session, then archive it immediately.
+
+    Owner decision (2026-06-24): completion archives at once — a validated
+    session is finished and not resumable. Returns the ``archive/<id>/`` dest.
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    session_dir = mark_validated(workspace_path, cfg, session)
+    run_id = os.path.basename(session_dir)
+    return archive_session(workspace_path, run_id, incomplete=False, cfg=cfg)
+
+
+def abandon_session(
+    workspace_path: str, cfg: AethelConfig | None = None, session: str | None = None
+) -> str:
+    """``aethel abandon``: archive the selected session to ``_incomplete/``.
+
+    A recoverable directory move (not a delete), so it acts directly with no
+    interactive confirmation. Raises ``ValueError`` when none resolves.
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    session_dir = current_session_dir(workspace_path, cfg, session)
+    if session_dir is None:
+        raise ValueError("No active Aethel session to abandon (run `aethel start` first).")
+    run_id = os.path.basename(session_dir)
+    return archive_session(workspace_path, run_id, incomplete=True, cfg=cfg)

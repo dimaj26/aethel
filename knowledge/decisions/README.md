@@ -16,3 +16,4 @@ historical).
 - [ADR 0002 — Navigable reachability + ADR ledger](0002-navigable-reachability.md) — orphan = reachable by navigation (transitive); ADRs surfaced via this ledger.
 - [ADR 0003 — Hook degrades on a missing install](0003-hook-degradation.md) — missing install → warn-skip (exit 0); strict mode via `AETHEL_REQUIRE`.
 - [ADR 0004 — Personal profile is a live overlay](0004-personal-profile-live-overlay.md) — `~/.aethel/` config + recipes merged live; precedence defaults < profile < workspace; fail-open.
+- [ADR 0005 — Multi-slot concurrent sessions](0005-multi-slot-sessions.md) — many live sessions; selector `--session` > `AETHEL_SESSION` > `CURRENT`; archival is explicit `done`/`abandon`, not a `start` side effect.

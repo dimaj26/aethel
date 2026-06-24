@@ -506,6 +506,11 @@ def _check_install(dest_dir: str) -> None:
 def cmd_lint(args: argparse.Namespace) -> None:
     dest_dir = os.path.abspath(args.path)
     print(f"Linting Aethel workspace: {dest_dir}")
+    # `--session` pins which session's artifacts the linter resolves; the linter's
+    # `_artifact_base` already honors AETHEL_SESSION, so thread the flag through it.
+    sel = getattr(args, "session", None)
+    if sel:
+        os.environ["AETHEL_SESSION"] = sel
     # Forward to consolidated linter cli main by mimicking argv
     sys.argv = [sys.argv[0], "--dir", dest_dir]
     from aethel.linter import main
@@ -648,31 +653,33 @@ def cmd_eject(args: argparse.Namespace) -> None:
 
 
 def cmd_start(args: argparse.Namespace) -> None:
-    """Open a NEW Route B session, reconciling the previous one on start.
+    """Open a NEW Route B session (multi-slot: the prior one stays LIVE).
 
-    A validated previous session is archived under `.aethel/archive/<id>/`; an
-    interrupted (un-`done`) one under `.aethel/archive/_incomplete/<id>/`."""
+    No longer reconciles/archives the previous session — sessions accumulate
+    under `.aethel/sessions/` and are completed explicitly via `aethel done`
+    (archive) or `aethel abandon` (archive to `_incomplete/`)."""
     dest_dir = os.path.abspath(args.path)
     cfg = load_config(dest_dir)
-    moved = session.reconcile(dest_dir, cfg)
-    if moved:
-        rel = os.path.relpath(moved, dest_dir)
-        print(f"Reconciled previous session -> {rel}")
     session_dir = session.start_session(dest_dir, args.slug, cfg)
+    run_id = os.path.basename(session_dir)
     rel_session = os.path.relpath(session_dir, dest_dir)
     print(f"Opened session: {rel_session}")
+    print(f"  To run this session in parallel from another agent: $env:AETHEL_SESSION='{run_id}'")
     print("Author implementation_plan.md / task.md / walkthrough.md inside this directory.")
 
 
 def cmd_done(args: argparse.Namespace) -> None:
-    """Final Route B step: re-validate the active session's report and mark it done.
+    """Final Route B step: re-validate the selected session's report, then archive it.
 
-    Re-runs `check_report_file` against the active session; on success writes
-    `status=validated` to the manifest, on failure refuses (exit 1, session stays
-    `active`). No active session is an error."""
+    Re-runs `check_report_file`; on success marks `status=validated` AND archives
+    the session to `archive/<id>/` (completion archives immediately), on failure
+    refuses (exit 1, session stays `active`). `--session` targets a specific id,
+    else the `AETHEL_SESSION` env / `CURRENT` selector. No selected session is an
+    error."""
     dest_dir = os.path.abspath(args.path)
     cfg = load_config(dest_dir)
-    session_dir = session.current_session_dir(dest_dir, cfg)
+    sel = getattr(args, "session", None)
+    session_dir = session.current_session_dir(dest_dir, cfg, sel)
     if session_dir is None:
         print("Error: no active Aethel session. Run `aethel start` to open one.")
         sys.exit(1)
@@ -687,8 +694,46 @@ def cmd_done(args: argparse.Namespace) -> None:
         print("Author a valid session report, then re-run `aethel done`. Session left active.")
         sys.exit(1)
 
-    session.mark_validated(dest_dir, cfg)
-    print(f"Session validated: {os.path.relpath(session_dir, dest_dir)}")
+    dest = session.complete_session(dest_dir, cfg, sel)
+    print(f"Session validated and archived: {os.path.relpath(dest, dest_dir)}")
+
+
+def cmd_sessions(args: argparse.Namespace) -> None:
+    """List every live session under `.aethel/sessions/` (`*` marks CURRENT)."""
+    dest_dir = os.path.abspath(args.path)
+    cfg = load_config(dest_dir)
+    rows = session.list_sessions(dest_dir, cfg)
+    if not rows:
+        print("No live sessions. Run `aethel start` to open one.")
+        return
+    for r in rows:
+        mark = "*" if r.get("current") else " "
+        print(f"{mark} {r.get('id', '?')}  [{r.get('status', '?')}]  {r.get('slug', '')}")
+
+
+def cmd_switch(args: argparse.Namespace) -> None:
+    """Repoint CURRENT at an existing live session (by exact run-id)."""
+    dest_dir = os.path.abspath(args.path)
+    cfg = load_config(dest_dir)
+    try:
+        session_dir = session.switch_session(dest_dir, args.session, cfg)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    print(f"CURRENT -> {os.path.relpath(session_dir, dest_dir)}")
+
+
+def cmd_abandon(args: argparse.Namespace) -> None:
+    """Archive the selected session to `_incomplete/` (recoverable move, no prompt)."""
+    dest_dir = os.path.abspath(args.path)
+    cfg = load_config(dest_dir)
+    sel = getattr(args, "session", None)
+    try:
+        dest = session.abandon_session(dest_dir, cfg, sel)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    print(f"Abandoned -> {os.path.relpath(dest, dest_dir)}")
 
 
 def resolve_hook_python(workspace_path: str) -> str:
@@ -787,6 +832,7 @@ def main() -> None:
     # lint subcommand
     p_lint = subparsers.add_parser("lint", help="Validate workspace plan files and knowledge-index integrity")
     p_lint.add_argument("path", nargs="?", default=".", help="Workspace path to lint (default: current)")
+    p_lint.add_argument("--session", default=None, help="Resolve artifacts for a specific run-id (default: AETHEL_SESSION env / CURRENT)")
     p_lint.set_defaults(func=cmd_lint)
 
     # update subcommand
@@ -802,16 +848,34 @@ def main() -> None:
     p_eject.add_argument("--undo", action="store_true", help="Remove the eject stamp, restoring managed updates")
     p_eject.set_defaults(func=cmd_eject)
 
-    # start subcommand: open a new Route B session (reconciles the previous one)
-    p_start = subparsers.add_parser("start", help="Open a new Route B session under .aethel/ (reconciles the previous one)")
+    # start subcommand: open a new Route B session (multi-slot; prior stays live)
+    p_start = subparsers.add_parser("start", help="Open a new Route B session under .aethel/ (the prior one stays live)")
     p_start.add_argument("slug", nargs="?", default=None, help="Optional slug for the run-id (sanitized to kebab-case)")
     p_start.add_argument("--path", default=".", help="Workspace path (default: current)")
     p_start.set_defaults(func=cmd_start)
 
-    # done subcommand: re-validate the active session report and mark it validated
-    p_done = subparsers.add_parser("done", help="Re-validate the active session's walkthrough.md and mark it validated")
+    # done subcommand: re-validate the selected session report, mark validated, archive it
+    p_done = subparsers.add_parser("done", help="Re-validate the selected session's walkthrough.md, mark validated, and archive it")
     p_done.add_argument("--path", default=".", help="Workspace path (default: current)")
+    p_done.add_argument("--session", default=None, help="Target a specific run-id (default: AETHEL_SESSION env / CURRENT)")
     p_done.set_defaults(func=cmd_done)
+
+    # sessions subcommand: list live sessions
+    p_sessions = subparsers.add_parser("sessions", help="List live Route B sessions (* marks CURRENT)")
+    p_sessions.add_argument("path", nargs="?", default=".", help="Workspace path (default: current)")
+    p_sessions.set_defaults(func=cmd_sessions)
+
+    # switch subcommand: repoint CURRENT at an existing session
+    p_switch = subparsers.add_parser("switch", help="Repoint CURRENT at an existing live session (by run-id)")
+    p_switch.add_argument("session", help="Run-id of the session to make current")
+    p_switch.add_argument("--path", default=".", help="Workspace path (default: current)")
+    p_switch.set_defaults(func=cmd_switch)
+
+    # abandon subcommand: archive the selected session to _incomplete/
+    p_abandon = subparsers.add_parser("abandon", help="Archive the selected session to _incomplete/ (recoverable)")
+    p_abandon.add_argument("--path", default=".", help="Workspace path (default: current)")
+    p_abandon.add_argument("--session", default=None, help="Target a specific run-id (default: AETHEL_SESSION env / CURRENT)")
+    p_abandon.set_defaults(func=cmd_abandon)
 
     # version subcommand: print package + core version
     p_version = subparsers.add_parser("version", help="Print the Aethel package and managed-core versions")
