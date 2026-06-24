@@ -166,16 +166,16 @@ def test_core_consistency_reports_version_skew(tmp_path, capsys):
     """A workspace whose core block matches structurally but carries an older (or
     absent) version stamp is *stale*, not forked: warn 'run aethel update', do not
     block, and do not report structural divergence."""
-    from aethel.markers import parse_core_version, strip_core_version
+    from aethel.markers import parse_core_revision, strip_core_revision
     core = _installed_core_block()
     assert core is not None
-    lib_version = parse_core_version(core)
-    assert lib_version is not None, "library core block must carry a version stamp"
+    lib_rev = parse_core_revision(core)
+    assert lib_rev is not None, "library core block must carry a revision stamp"
 
-    # Downgrade the stamp to an older version; structure is otherwise identical.
-    stale = core.replace(lib_version, "0.0.1", 1)
-    assert parse_core_version(stale) == "0.0.1"
-    assert strip_core_version(stale) == strip_core_version(core)  # same structure
+    # Downgrade the stamp to an older revision; structure is otherwise identical.
+    stale = core.replace(f"CORE-REV {lib_rev}", "CORE-REV 1", 1)
+    assert parse_core_revision(stale) == 1
+    assert strip_core_revision(stale) == strip_core_revision(core)  # same structure
     (tmp_path / "AETHEL.md").write_text(stale + "\n", encoding="utf-8")
 
     # Skew is non-blocking even when structural consistency is 'error'...

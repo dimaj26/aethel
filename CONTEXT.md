@@ -19,6 +19,7 @@ topic file; design decisions are append-only ADRs under `knowledge/decisions/`.
 - [Linter checks](knowledge/linter-checks.md) — every check `aethel.linter` runs and its stage wiring.
 - [Session lifecycle](knowledge/session-lifecycle.md) — per-session `.aethel/` working dir: multi-slot start/select/switch, `aethel done`/`abandon` archival.
 - [Core consistency (CC-1)](knowledge/core-consistency.md) — the directional core ⊇ workspace contract.
+- [Versioning](knowledge/versioning.md) — the three version axes (package dev / package PyPI / integer core revision) and how `aethel doctor` reads them.
 - [Recipe discovery](knowledge/recipes.md) — runtime discovery of stack-specific config recipes.
 
 ## Decisions (ADRs)

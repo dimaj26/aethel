@@ -6,14 +6,15 @@ import subprocess
 import sys
 from typing import NamedTuple
 
-from aethel import CORE_VERSION
+from aethel import CORE_REVISION
 from aethel.config import AethelConfig, load_config
 from aethel.markers import (
     extract_managed_block,
+    has_legacy_core_version_stamp,
     is_ejected,
     normalize_block,
-    parse_core_version,
-    strip_core_version,
+    parse_core_revision,
+    strip_core_revision,
 )
 from aethel.session import current_session_dir
 
@@ -888,10 +889,10 @@ def _installed_core_block() -> str | None:
         return None
 
 
-def _installed_core_version() -> str:
-    """The core version the installed library ships (authoritative; the template
+def _installed_core_revision() -> int:
+    """The core revision the installed library ships (authoritative; the template
     stamp is asserted equal to it by a test)."""
-    return CORE_VERSION
+    return CORE_REVISION
 
 
 def _is_aethel_source_repo(workspace_path: str) -> bool:
@@ -910,17 +911,19 @@ class CoreState(NamedTuple):
     * ``"no_block"`` — ``AETHEL.md`` exists but has no ``aethel-core`` managed block.
     * ``"ejected"`` — the block carries an ``AETHEL:EJECTED`` stamp (`aethel eject`):
       sanctioned divergence, structure is never compared.
-    * ``"consistent"`` — block matches structure AND version.
-    * ``"skew"`` — block matches structure but the version stamp differs (stale).
+    * ``"consistent"`` — block matches structure AND revision.
+    * ``"skew"`` — block matches structure but the revision stamp differs (stale).
+    * ``"obsolete_stamp"`` — the block carries the superseded semver ``AETHEL:CORE-VERSION``
+      stamp instead of an integer ``AETHEL:CORE-REV`` (needs `aethel update`).
     * ``"diverged"`` — block structure differs from the library (hand-edited / forked).
 
-    ``ws_version`` is the workspace's stamped core version (``None`` if unstamped /
-    absent); ``lib_version`` is the version the installed library ships.
+    ``ws_rev`` is the workspace's stamped core revision (``None`` if unstamped / absent /
+    obsolete-format); ``lib_rev`` is the integer revision the installed library ships.
     """
 
     status: str
-    ws_version: str | None
-    lib_version: str
+    ws_rev: int | None
+    lib_rev: int
 
 
 def classify_core_state(workspace_path: str) -> CoreState:
@@ -930,38 +933,45 @@ def classify_core_state(workspace_path: str) -> CoreState:
     enforce/severity mapping lives in ``check_core_consistency``. It is the single
     source of truth shared by the linter check and ``aethel doctor``.
     """
-    lib_version = _installed_core_version()
+    lib_rev = _installed_core_revision()
     if _is_aethel_source_repo(workspace_path):
-        return CoreState("source", lib_version, lib_version)
+        return CoreState("source", lib_rev, lib_rev)
 
     lib_core = _installed_core_block()
     if lib_core is None:
-        return CoreState("no_template", None, lib_version)
+        return CoreState("no_template", None, lib_rev)
 
     aethel_path = os.path.join(workspace_path, "AETHEL.md")
     if not os.path.exists(aethel_path):
-        return CoreState("no_workspace", None, lib_version)
+        return CoreState("no_workspace", None, lib_rev)
     try:
         with open(aethel_path, "r", encoding="utf-8") as f:
             ws_core = extract_managed_block(f.read(), "aethel-core")
     except OSError:
-        return CoreState("no_workspace", None, lib_version)
+        return CoreState("no_workspace", None, lib_rev)
 
     if ws_core is None:
-        return CoreState("no_block", None, lib_version)
+        return CoreState("no_block", None, lib_rev)
 
     if is_ejected(ws_core, "aethel-core"):
-        return CoreState("ejected", parse_core_version(ws_core), lib_version)
+        return CoreState("ejected", parse_core_revision(ws_core), lib_rev)
+
+    ws_rev = parse_core_revision(ws_core)
+    # Obsolete-format guard: an unparseable (None) revision that still carries the legacy
+    # semver stamp is a stale workspace needing `aethel update`, NOT a silent skew — surface
+    # it distinctly before the structural compare (the legacy stamp line would otherwise read
+    # as structural divergence).
+    if ws_rev is None and has_legacy_core_version_stamp(ws_core):
+        return CoreState("obsolete_stamp", None, lib_rev)
 
     structurally_equal = (
-        normalize_block(strip_core_version(ws_core)) == normalize_block(strip_core_version(lib_core))
+        normalize_block(strip_core_revision(ws_core)) == normalize_block(strip_core_revision(lib_core))
     )
-    ws_version = parse_core_version(ws_core)
     if not structurally_equal:
-        return CoreState("diverged", ws_version, lib_version)
-    if ws_version == lib_version:
-        return CoreState("consistent", ws_version, lib_version)
-    return CoreState("skew", ws_version, lib_version)
+        return CoreState("diverged", ws_rev, lib_rev)
+    if ws_rev == lib_rev:
+        return CoreState("consistent", ws_rev, lib_rev)
+    return CoreState("skew", ws_rev, lib_rev)
 
 
 def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
@@ -971,13 +981,14 @@ def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None)
     (custom rules below the block, recipes, aethel.toml) — that asymmetry is
     allowed; the core is the invariant subset, not a copy of the workspace.
 
-    The block carries a version stamp (`AETHEL:CORE-VERSION`). It is stripped
+    The block carries an integer revision stamp (`AETHEL:CORE-REV`). It is stripped
     before the structural comparison so two failure modes are told apart:
     * **structure diverges** ⇒ the block was hand-edited / forked — severity
       `[consistency] enforce`;
-    * **structure matches, version differs** (incl. an unstamped older workspace)
-      ⇒ the workspace is merely STALE — "run `aethel update`" at severity
-      `[consistency] version_skew_enforce` (default warn, non-blocking).
+    * **structure matches, revision differs** (incl. an unstamped older workspace, or a
+      workspace still on the obsolete semver stamp) ⇒ the workspace is merely STALE —
+      "run `aethel update`" at severity `[consistency] version_skew_enforce`
+      (default warn, non-blocking).
 
     Returns True (non-blocking) unless a problem is found at its 'error' severity.
     """
@@ -995,13 +1006,21 @@ def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None)
     if state.status == "consistent":
         return True  # structure + version match: fully consistent
 
-    if state.status == "skew":
+    if state.status in ("skew", "obsolete_stamp"):
         print("--- Running Core Consistency Validation ---")
-        msg = (
-            f"Core version skew: this workspace's managed core is version "
-            f"{state.ws_version or '(unstamped)'} but the installed Aethel library ships core "
-            f"{state.lib_version}. The block is otherwise unchanged — run `aethel update` to re-sync it."
-        )
+        if state.status == "obsolete_stamp":
+            msg = (
+                "Core stamp obsolete: this workspace carries the superseded semver "
+                "`AETHEL:CORE-VERSION` stamp instead of an integer `AETHEL:CORE-REV` "
+                f"(library ships core-rev {state.lib_rev}). Run `aethel update` to re-sync it."
+            )
+        else:
+            ws = f"core-rev {state.ws_rev}" if state.ws_rev is not None else "(unstamped)"
+            msg = (
+                f"Core revision skew: this workspace's managed core is {ws} but the installed "
+                f"Aethel library ships core-rev {state.lib_rev}. The block is otherwise unchanged "
+                "— run `aethel update` to re-sync it."
+            )
         if cfg.version_skew_enforce == "error":
             print_error(msg)
             return False

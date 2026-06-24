@@ -83,9 +83,9 @@ changelog_file = "CHANGELOG.md"
 # block, recipes, this file) but must not fork it. On divergence, run `aethel update`.
 #   "warn" (default) | "error" (block) | "off" (disable)
 enforce = "warn"
-# Version skew: the managed block carries a `<!-- AETHEL:CORE-VERSION X.Y.Z -->` stamp. When the
-# block matches the library STRUCTURALLY but its version is older (or unstamped), the workspace is
-# stale, not forked — the linter says "run `aethel update`" at this severity (separate from
-# `enforce`, which governs structural divergence).
+# Revision skew: the managed block carries an integer `<!-- AETHEL:CORE-REV N -->` stamp. When the
+# block matches the library STRUCTURALLY but its revision is older (unstamped, or the obsolete
+# semver stamp), the workspace is stale, not forked — the linter says "run `aethel update`" at this
+# severity (separate from `enforce`, which governs structural divergence).
 #   "warn" (default) | "error" (block) | "off" (disable)
 version_skew_enforce = "warn"

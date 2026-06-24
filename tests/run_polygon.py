@@ -438,17 +438,17 @@ def test_scenario_i(temp_dir):
     # Drop the enforce=error override so the skew sub-case runs at defaults.
     os.remove(os.path.join(scen_dir, "aethel.toml"))
 
-    # Version skew: downgrade ONLY the core-version stamp (structure intact). This is a
+    # Revision skew: downgrade ONLY the integer core-rev stamp (structure intact). This is a
     # stale workspace, not a fork -> warn "run aethel update", but DO NOT block.
     with open(aethel_file, "r", encoding="utf-8") as f:
         stamped = f.read()
-    assert "AETHEL:CORE-VERSION" in stamped, "deployed core block is missing the version stamp"
-    skewed = re.sub(r"(AETHEL:CORE-VERSION)\s+\S+", r"\1 0.0.1", stamped, count=1)
-    assert skewed != stamped, "test setup: version stamp not found to downgrade"
+    assert "AETHEL:CORE-REV" in stamped, "deployed core block is missing the revision stamp"
+    skewed = re.sub(r"(AETHEL:CORE-REV)\s+\d+", r"\1 1", stamped, count=1)
+    assert skewed != stamped, "test setup: revision stamp not found to downgrade"
     with open(aethel_file, "w", encoding="utf-8") as f:
         f.write(skewed)
     res = run_cmd([sys.executable, "-m", "aethel.cli", "lint"], scen_dir, expected_code=0)
-    assert "version skew" in res.stdout.lower(), "version skew not reported"
+    assert "skew" in res.stdout.lower(), "revision skew not reported"
     assert "aethel update" in res.stdout.lower(), "skew message should point to `aethel update`"
 
     # Promoting version_skew_enforce to error makes the same skew block.

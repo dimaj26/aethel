@@ -4,8 +4,22 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
 
 ## [Unreleased]
 ### Changed
-- **Sessions are now multi-slot — parallel Route B tasks no longer stomp each other**
-  (`CORE_VERSION` 1.4.0 → 1.5.0). The old model had one global `CURRENT` and reconciled-on-`start`,
+- **Core block is versioned by an integer revision, not semver** (`CORE-REV 7`; replaces the
+  `CORE_VERSION = "1.5.0"` semver stamp). Three version axes — package-in-dev (`__version__` /
+  pyproject, semver 1.4.0), package-on-PyPI (surfaced live by `aethel doctor`), and the core block
+  (now integer `core-rev N`) — were all `X.Y.Z` and got conflated; making the core an integer makes
+  that structurally impossible. `aethel version` → `aethel-cli 1.4.0 · core-rev 7`; `aethel doctor`
+  prints all three labeled axes with a fail-soft PyPI lookup (`unknown (offline)`; a malformed
+  response is surfaced distinctly, never masked as offline). Clean break (package not yet deployed)
+  with a read-only `has_legacy_core_version_stamp` guard so a stray semver stamp reads as "obsolete
+  stamp", not a silent skew. `markers` `parse_core_version`/`strip_core_version` →
+  `parse_core_revision`/`strip_core_revision`; `CoreState.ws_rev`/`lib_rev` are ints; new
+  `obsolete_stamp` state. PA-1 audited (Accepted-with-conditions, all folded in). New
+  `knowledge/versioning.md`; ADR 0006; `tests/test_version.py`/`test_doctor.py`/`test_linter.py` +
+  polygon scenario I. Roadmap: version-confusion fix.
+- **Sessions are now multi-slot — parallel Route B tasks no longer stomp each other** (core block
+  changed; the core version scheme is itself replaced by the integer revision above). The old model
+  had one global `CURRENT` and reconciled-on-`start`,
   so opening a second task forcibly archived the first to `_incomplete/` — two agents could not work
   one workspace. Now many live sessions coexist under `.aethel/sessions/`; the selected one resolves
   by `--session <id>` > `AETHEL_SESSION` env > `CURRENT`. `aethel start` no longer archives the prior

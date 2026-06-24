@@ -9,9 +9,9 @@ one under `archive/_incomplete/<id>/`.
 import json
 import os
 
-from aethel.config import AethelConfig
 import pytest
 
+from aethel.config import AethelConfig
 from aethel.session import (
     abandon_session,
     aethel_paths,

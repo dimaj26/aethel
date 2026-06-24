@@ -95,7 +95,7 @@ class AethelConfig:
     rule_files: list[str] = field(default_factory=lambda: list(DEFAULT_RULE_FILES))
     changelog_file: str = DEFAULT_CHANGELOG_FILE
     consistency_enforce: str = "warn"  # error | warn | off (workspace core block structure vs library)
-    version_skew_enforce: str = "warn"  # error | warn | off (workspace core version older than library)
+    version_skew_enforce: str = "warn"  # error | warn | off (workspace core revision older than library)
     knowledge_index: str = DEFAULT_KNOWLEDGE_INDEX  # the llms.txt-style index file
     knowledge_dir: str = DEFAULT_KNOWLEDGE_DIR  # directory of atomic topic files
     dead_link_enforce: str = "error"  # error | warn | off (index link resolves on disk)

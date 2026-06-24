@@ -774,8 +774,37 @@ def probe_import(python_exe: str) -> tuple[bool, str]:
 
 
 def cmd_version(args: argparse.Namespace | None) -> None:
-    """Print the package version and the managed-core-block version."""
-    print(f"aethel {aethel.__version__} (core {aethel.CORE_VERSION})")
+    """Print the package version (semver) and the managed-core-block revision (integer).
+
+    The two are deliberately different shapes — `aethel-cli X.Y.Z` is the pip package,
+    `core-rev N` is the managed schema revision — so they can never be confused.
+    """
+    print(f"aethel-cli {aethel.__version__} · core-rev {aethel.CORE_REVISION}")
+
+
+def _pypi_latest(name: str) -> str | None:
+    """Latest published version of `name` on PyPI, or None when offline/unreachable.
+
+    Network in `doctor` is fail-soft: a connectivity/timeout miss yields None (rendered
+    "unknown (offline)") and NEVER affects the exit code. Only the network/timeout class
+    is swallowed here — a *malformed* response is NOT masked as offline; it propagates so
+    the caller can surface it distinctly (taboo 6 / fail-fast: an unexpected error must
+    not look like an expected one).
+    """
+    import json
+    import socket
+    import urllib.error
+    import urllib.request
+
+    url = f"https://pypi.org/pypi/{name}/json"
+    try:
+        with urllib.request.urlopen(url, timeout=2) as resp:  # noqa: S310 (fixed https URL)
+            payload = resp.read()
+    except (urllib.error.URLError, socket.timeout, TimeoutError):
+        return None  # offline / unreachable — an expected state, not an error
+    # Reached PyPI: a parse failure here is unexpected and intentionally propagates.
+    data = json.loads(payload)
+    return str(data["info"]["version"])
 
 
 _CORE_STATE_LABEL = {
@@ -785,27 +814,36 @@ _CORE_STATE_LABEL = {
     "no_block": "FORKED — AETHEL.md has no managed core block (run `aethel update`)",
     "ejected": "EJECTED — sanctioned divergence (`aethel eject`); update/consistency skip it",
     "consistent": "consistent (matches the installed library core)",
-    "skew": "version skew — stale core, run `aethel update`",
+    "skew": "core-rev skew — stale core, run `aethel update`",
+    "obsolete_stamp": "OBSOLETE STAMP — semver CORE-VERSION instead of integer CORE-REV (run `aethel update`)",
     "diverged": "DIVERGED — managed core block was hand-edited (run `aethel update`)",
 }
 
 
 def cmd_doctor(args: argparse.Namespace) -> None:
-    """Summarize workspace health: versions, core-block state, importability.
+    """Summarize workspace health: the three version axes, core-block state, importability.
 
-    Exits 1 on a HARD problem (core block diverged/forked, or `aethel` not
-    importable by the hook interpreter); a mere version skew is a warn → exit 0.
+    Exits 1 on a HARD problem (core block diverged/forked, or `aethel` not importable by
+    the hook interpreter); a mere revision skew is a warn → exit 0. The PyPI lookup is
+    fail-soft and never affects the exit code.
     """
     dest_dir = os.path.abspath(args.path)
     state = classify_core_state(dest_dir)
     python_exe = resolve_hook_python(dest_dir)
     importable, detail = probe_import(python_exe)
 
-    ws_version = state.ws_version or "(unstamped/absent)"
+    try:
+        pypi_latest = _pypi_latest("aethel-cli")
+        pypi_str = pypi_latest if pypi_latest else "unknown (offline)"
+    except Exception as e:  # malformed response — surfaced, not masked as offline
+        pypi_str = f"unknown (unexpected PyPI response: {type(e).__name__})"
+
+    ws_core = f"core-rev {state.ws_rev}" if state.ws_rev is not None else "(unstamped/absent)"
     print(f"Aethel doctor — workspace: {dest_dir}")
-    print(f"  package version : {aethel.__version__}")
-    print(f"  library core    : {state.lib_version}")
-    print(f"  workspace core  : {ws_version}")
+    print(f"  package (dev)   : {aethel.__version__}")
+    print(f"  package (PyPI)  : {pypi_str}")
+    print(f"  library core    : core-rev {state.lib_rev}")
+    print(f"  workspace core  : {ws_core}")
     print(f"  core block      : {_CORE_STATE_LABEL.get(state.status, state.status)}")
     print(f"  hook interpreter: {python_exe}")
     if importable:

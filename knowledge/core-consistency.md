@@ -27,22 +27,26 @@ library defaults. The relationship is directional and must be preserved.
   for the Critical Coding Taboos list (the template's taboos must all appear in this repo's own
   `AETHEL.md`; the reverse asymmetry — dev-only taboos the template doesn't need — is allowed).
 
-## Version stamping & skew
-The managed block carries a version stamp `<!-- AETHEL:CORE-VERSION X.Y.Z -->` right under the
-BEGIN marker. It is the managed-core-block version (`aethel.CORE_VERSION`), bumped only when the
-block's rules change — distinct from the pip package version `aethel.__version__` (a test keeps
-each internally in sync: the template stamp == `CORE_VERSION`, and `__version__` ==
-`pyproject [project].version`).
+## Revision stamping & skew
+The managed block carries an **integer revision** stamp `<!-- AETHEL:CORE-REV N -->` right under the
+BEGIN marker — `aethel.CORE_REVISION`, bumped whenever the block changes. It is deliberately an
+integer, not a semver string, so it can never be confused with the pip package version
+`aethel.__version__` (the conflation this scheme prevents — see [versioning](versioning.md)). A test
+keeps each internally in sync: the template stamp == `CORE_REVISION`, and `__version__` ==
+`pyproject [project].version`.
 
 The classification is a pure seam — `classify_core_state(workspace_path) -> CoreState` (status:
-`source` / `no_template` / `no_workspace` / `no_block` / `consistent` / `skew` / `diverged`, plus
-`ws_version` / `lib_version`). It strips the stamp from both sides (`markers.strip_core_version`)
-before the structural compare, so two failure modes are told apart:
+`source` / `no_template` / `no_workspace` / `no_block` / `consistent` / `skew` / `obsolete_stamp` /
+`diverged`, plus `ws_rev` / `lib_rev`). It strips the stamp from both sides
+(`markers.strip_core_revision`) before the structural compare, so the failure modes are told apart:
 - **structure diverges** ⇒ the block was hand-edited / forked → severity `[consistency] enforce`.
-- **structure matches, version differs** (incl. an unstamped older workspace) ⇒ the workspace is
+- **structure matches, revision differs** (incl. an unstamped older workspace) ⇒ the workspace is
   merely STALE → "run `aethel update`" at severity `[consistency] version_skew_enforce` (default
-  `warn`, non-blocking). `aethel update` rewrites the block from the template, refreshing the
-  stamp so the skew clears.
+  `warn`, non-blocking).
+- **obsolete stamp** ⇒ the block still carries the superseded semver `AETHEL:CORE-VERSION` instead
+  of `AETHEL:CORE-REV` (detected read-only via `markers.has_legacy_core_version_stamp`) → surfaced
+  explicitly as needing `aethel update`, not as a silent skew. `aethel update` rewrites the block
+  from the template, refreshing the stamp so the skew clears.
 
 `check_core_consistency` consumes that classification and applies the config severity. `aethel
 doctor` consumes the SAME `classify_core_state` to print the state for humans (see

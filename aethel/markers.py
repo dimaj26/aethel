@@ -25,22 +25,37 @@ def managed_block_pattern(block_id: str) -> re.Pattern[str]:
 
 _BEGIN_ID_RE = re.compile(r"<!--\s*AETHEL:MANAGED:BEGIN\s+id=(\S+?)\s*-->")
 
-# Core-version stamp: a dedicated marker line carried INSIDE the managed block (so
+# Core-revision stamp: a dedicated marker line carried INSIDE the managed block (so
 # `aethel update` owns it), kept separate from the `id=` marker because
-# `parse_block_id`'s `id=(\S+?)` cannot span a space. Stripped before structural
-# block comparison so version skew and hand-editing can be told apart.
-_CORE_VERSION_RE = re.compile(r"[ \t]*<!--\s*AETHEL:CORE-VERSION\s+(\S+?)\s*-->[ \t]*\n?")
+# `parse_block_id`'s `id=(\S+?)` cannot span a space. The value is an INTEGER revision
+# (not a semver string) so it can never be confused with the package version. Stripped
+# before structural block comparison so revision skew and hand-editing can be told apart.
+_CORE_REV_RE = re.compile(r"[ \t]*<!--\s*AETHEL:CORE-REV\s+(\d+)\s*-->[ \t]*\n?")
+
+# Legacy semver stamp (`AETHEL:CORE-VERSION 1.5.0`), superseded by the integer revision.
+# Kept ONLY as a read-only detector so the linter/doctor can emit an explicit
+# "obsolete stamp format" message instead of silently reading a None revision as skew.
+_LEGACY_CORE_VERSION_RE = re.compile(r"<!--\s*AETHEL:CORE-VERSION\s+\S+?\s*-->")
 
 
-def parse_core_version(text: str) -> str | None:
-    """Return the version from the first `AETHEL:CORE-VERSION` stamp, or None."""
-    match = _CORE_VERSION_RE.search(text)
-    return match.group(1) if match else None
+def parse_core_revision(text: str) -> int | None:
+    """Return the integer revision from the first `AETHEL:CORE-REV` stamp, or None."""
+    match = _CORE_REV_RE.search(text)
+    return int(match.group(1)) if match else None
 
 
-def strip_core_version(block: str) -> str:
-    """Remove the core-version stamp line so structural comparison ignores it."""
-    return _CORE_VERSION_RE.sub("", block, count=1)
+def strip_core_revision(block: str) -> str:
+    """Remove the core-revision stamp line so structural comparison ignores it."""
+    return _CORE_REV_RE.sub("", block, count=1)
+
+
+def has_legacy_core_version_stamp(text: str) -> bool:
+    """Whether a superseded semver `AETHEL:CORE-VERSION` stamp is present (read-only).
+
+    Lets callers distinguish an obsolete-format workspace (needs `aethel update`) from a
+    genuinely unstamped one, instead of both collapsing to a silent `None` revision.
+    """
+    return _LEGACY_CORE_VERSION_RE.search(text) is not None
 
 
 def extract_managed_block(text: str, block_id: str) -> str | None:
@@ -67,7 +82,7 @@ def replace_managed_block(content: str, new_block: str, block_id: str) -> tuple[
 
 
 # Eject stamp: a sanctioned-divergence marker carried INSIDE the managed block, right
-# after the BEGIN line (mirrors the CORE-VERSION stamp's placement). Its presence tells
+# after the BEGIN line (mirrors the CORE-REV stamp's placement). Its presence tells
 # `classify_core_state` to stop comparing structure altogether — the workspace owns this
 # block on purpose, so hand-edits are no longer "diverged", and `aethel update` must not
 # overwrite them. `date=` is informational only, never compared.
