@@ -39,7 +39,7 @@ core block      : consistent
 The PyPI lookup is **fail-soft**: a network/timeout miss renders `unknown (offline)` and never
 affects the exit code; a malformed PyPI response is surfaced distinctly (`unexpected PyPI
 response`), never masked as offline (taboo 6 / fail-fast). `aethel version` prints the two local
-axes compactly: `aethel-cli 1.4.0 · core-rev 7`.
+axes compactly: `aethel-cli 1.4.0 (core-rev 7)`.
 
 ## Skew vs obsolete stamp
 A deployed workspace whose block matches structurally but stamps an older `core-rev` is **stale**

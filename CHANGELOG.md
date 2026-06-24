@@ -8,7 +8,7 @@ All notable changes to the Aethel boilerplate and tooling will be documented in 
   `CORE_VERSION = "1.5.0"` semver stamp). Three version axes — package-in-dev (`__version__` /
   pyproject, semver 1.4.0), package-on-PyPI (surfaced live by `aethel doctor`), and the core block
   (now integer `core-rev N`) — were all `X.Y.Z` and got conflated; making the core an integer makes
-  that structurally impossible. `aethel version` → `aethel-cli 1.4.0 · core-rev 7`; `aethel doctor`
+  that structurally impossible. `aethel version` → `aethel-cli 1.4.0 (core-rev 7)`; `aethel doctor`
   prints all three labeled axes with a fail-soft PyPI lookup (`unknown (offline)`; a malformed
   response is surfaced distinctly, never masked as offline). Clean break (package not yet deployed)
   with a read-only `has_legacy_core_version_stamp` guard so a stray semver stamp reads as "obsolete

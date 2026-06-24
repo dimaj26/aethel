@@ -779,7 +779,7 @@ def cmd_version(args: argparse.Namespace | None) -> None:
     The two are deliberately different shapes — `aethel-cli X.Y.Z` is the pip package,
     `core-rev N` is the managed schema revision — so they can never be confused.
     """
-    print(f"aethel-cli {aethel.__version__} · core-rev {aethel.CORE_REVISION}")
+    print(f"aethel-cli {aethel.__version__} (core-rev {aethel.CORE_REVISION})")
 
 
 def _pypi_latest(name: str) -> str | None:
