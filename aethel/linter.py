@@ -551,7 +551,7 @@ def check_knowledge_index(workspace_path: str, cfg: AethelConfig | None = None) 
     for target in _unannotated_index_links(content, index_dir, os.path.normpath(knowledge_root)):
         if _emit(
             cfg.annotation_enforce,
-            f"Index link to '{target}' has no annotation (expected '[text]({target}) — note').",
+            f"Index link to '{target}' has no annotation (expected '[text]({target}) - note').",
         ):
             has_errors = True
 
@@ -1019,7 +1019,7 @@ def check_core_consistency(workspace_path: str, cfg: AethelConfig | None = None)
             msg = (
                 f"Core revision skew: this workspace's managed core is {ws} but the installed "
                 f"Aethel library ships core-rev {state.lib_rev}. The block is otherwise unchanged "
-                "— run `aethel update` to re-sync it."
+                "- run `aethel update` to re-sync it."
             )
         if cfg.version_skew_enforce == "error":
             print_error(msg)

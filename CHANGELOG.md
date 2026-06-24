@@ -3,6 +3,13 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Fixed
+- **CLI output is now pure ASCII** so it renders cleanly on any Windows console codepage
+  (cp1251/cp1252/cp866/UTF-8), not just UTF-8. Em-dash/middle-dot separators in printed strings
+  (`aethel version`, `aethel doctor`, core-state labels, skew/eject/init messages) were mojibaking
+  to replacement glyphs under the console-encoding-resilience layer; replaced with ASCII hyphens.
+  Docstrings/comments (never printed) are untouched.
+
 ### Changed
 - **Core block is versioned by an integer revision, not semver** (`CORE-REV 7`; replaces the
   `CORE_VERSION = "1.5.0"` semver stamp). Three version axes — package-in-dev (`__version__` /

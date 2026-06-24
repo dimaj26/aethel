@@ -171,7 +171,7 @@ def write_linter_wrapper(dest_dir: str) -> None:
 def write_pre_commit_hook(dest_dir: str, verb: str) -> None:
     git_dir = os.path.join(dest_dir, ".git")
     if not os.path.isdir(git_dir):
-        print("Note: no .git directory found — skipped the pre-commit hook. Run `git init` then "
+        print("Note: no .git directory found - skipped the pre-commit hook. Run `git init` then "
               "`aethel update` to install it.")
         return
     hooks_dir = os.path.join(git_dir, "hooks")
@@ -497,7 +497,7 @@ def _check_install(dest_dir: str) -> None:
     print(
         f"\nNote: 'aethel' is not importable by the hook interpreter ({python_exe}).\n"
         "      The pre-commit hook will warn-and-skip until it is installed. To enable it:\n"
-        "        pipx install aethel-cli    (recommended — a global CLI), or\n"
+        "        pipx install aethel-cli    (recommended - a global CLI), or\n"
         "        pip install -e .           (inside the project venv, for development).\n"
         "      Then run 'aethel doctor' to verify."
     )
@@ -540,7 +540,7 @@ def _update_aethel_md(dest_dir: str) -> None:
     current_core = extract_managed_block(current, "aethel-core")
     if current_core is not None and is_ejected(current_core, "aethel-core"):
         print(
-            "AETHEL.md managed core block is EJECTED — skipping refresh. Run "
+            "AETHEL.md managed core block is EJECTED - skipping refresh. Run "
             "`aethel eject --undo` to resume managed updates."
         )
         return
@@ -630,7 +630,7 @@ def cmd_eject(args: argparse.Namespace) -> None:
         with open(aethel_path, "w", encoding="utf-8") as f:
             f.write(new_content)
         print(
-            "Re-attached AETHEL.md managed core block (eject undone) — `aethel update` and the "
+            "Re-attached AETHEL.md managed core block (eject undone) - `aethel update` and the "
             "core-consistency check will manage it again."
         )
         return
@@ -647,7 +647,7 @@ def cmd_eject(args: argparse.Namespace) -> None:
         f.write(new_content)
     print(
         "Ejected AETHEL.md managed core block: `aethel update` and the core-consistency check "
-        "will leave it alone from now on. You own its content — run `aethel eject --undo --path "
+        "will leave it alone from now on. You own its content - run `aethel eject --undo --path "
         f"{args.path}` to resume managed updates (hand-edits will then be reported as divergence)."
     )
 
@@ -688,7 +688,7 @@ def cmd_done(args: argparse.Namespace) -> None:
     for w in warnings:
         print(f"Warning: {w}")
     if errors:
-        print("Cannot mark session done — walkthrough.md is missing or malformed:")
+        print("Cannot mark session done - walkthrough.md is missing or malformed:")
         for e in errors:
             print(f"  - {e}")
         print("Author a valid session report, then re-run `aethel done`. Session left active.")
@@ -811,12 +811,12 @@ _CORE_STATE_LABEL = {
     "source": "source repo (defines the core; consistency check exempt)",
     "no_template": "cannot compare (installed library ships no core template)",
     "no_workspace": "no AETHEL.md in this workspace",
-    "no_block": "FORKED — AETHEL.md has no managed core block (run `aethel update`)",
-    "ejected": "EJECTED — sanctioned divergence (`aethel eject`); update/consistency skip it",
+    "no_block": "FORKED - AETHEL.md has no managed core block (run `aethel update`)",
+    "ejected": "EJECTED - sanctioned divergence (`aethel eject`); update/consistency skip it",
     "consistent": "consistent (matches the installed library core)",
-    "skew": "core-rev skew — stale core, run `aethel update`",
-    "obsolete_stamp": "OBSOLETE STAMP — semver CORE-VERSION instead of integer CORE-REV (run `aethel update`)",
-    "diverged": "DIVERGED — managed core block was hand-edited (run `aethel update`)",
+    "skew": "core-rev skew - stale core, run `aethel update`",
+    "obsolete_stamp": "OBSOLETE STAMP - semver CORE-VERSION instead of integer CORE-REV (run `aethel update`)",
+    "diverged": "DIVERGED - managed core block was hand-edited (run `aethel update`)",
 }
 
 
@@ -839,7 +839,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
         pypi_str = f"unknown (unexpected PyPI response: {type(e).__name__})"
 
     ws_core = f"core-rev {state.ws_rev}" if state.ws_rev is not None else "(unstamped/absent)"
-    print(f"Aethel doctor — workspace: {dest_dir}")
+    print(f"Aethel doctor - workspace: {dest_dir}")
     print(f"  package (dev)   : {aethel.__version__}")
     print(f"  package (PyPI)  : {pypi_str}")
     print(f"  library core    : core-rev {state.lib_rev}")
@@ -849,7 +849,7 @@ def cmd_doctor(args: argparse.Namespace) -> None:
     if importable:
         print("  aethel import   : yes")
     else:
-        print(f"  aethel import   : NO — {detail}")
+        print(f"  aethel import   : NO - {detail}")
 
     hard_problem = state.status in ("no_block", "diverged") or not importable
     sys.exit(1 if hard_problem else 0)
