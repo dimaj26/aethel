@@ -2,3 +2,9 @@
 pytest>=8.0.0
 ruff>=0.3.0
 mypy>=1.0.0
+# Packaging/release-smoke tests shell out to `python -m build --wheel --no-isolation`,
+# which needs both the `build` frontend AND `wheel` present in THIS env (no isolation to
+# provision them). Without these, tests/test_packaging.py + test_release_smoke.py +
+# test_scenario_projects.py error out (12 errors + 1 fail) on an otherwise-complete install.
+build>=1.0.0
+wheel>=0.40.0
