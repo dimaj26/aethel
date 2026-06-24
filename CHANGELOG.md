@@ -3,6 +3,8 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+
+## [1.5.0] - 2026-06-24
 ### Fixed
 - **CLI output is now pure ASCII** so it renders cleanly on any Windows console codepage
   (cp1251/cp1252/cp866/UTF-8), not just UTF-8. Em-dash/middle-dot separators in printed strings
