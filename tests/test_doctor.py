@@ -153,3 +153,20 @@ def test_doctor_import_failure_exits_one(tmp_path, monkeypatch):
     core = _installed_core_block()
     _write_core(tmp_path, "# Project\n\n" + core + "\n")
     assert _run_doctor(tmp_path, monkeypatch, importable=False) == 1
+
+
+def test_doctor_flags_dead_hook_under_hooksPath(tmp_path, monkeypatch, capsys):
+    """#1: a workspace whose hooks are redirected by core.hooksPath to a manager
+    whose pre-commit lacks the Aethel invocation has a DEAD guard — doctor must
+    say so, not silently report health."""
+    import aethel.cli as cli
+    core = _installed_core_block()
+    _write_core(tmp_path, "# Project\n\n" + core + "\n")
+    (tmp_path / ".git").mkdir()
+    husky = tmp_path / ".husky"
+    husky.mkdir()
+    (husky / "pre-commit").write_text("#!/bin/sh\nnpm test\n", encoding="utf-8")
+    monkeypatch.setattr(cli, "_git_config", lambda _ws, _key: ".husky")
+    _run_doctor(tmp_path, monkeypatch)
+    out = capsys.readouterr().out.lower()
+    assert "dead" in out and "hookspath" in out

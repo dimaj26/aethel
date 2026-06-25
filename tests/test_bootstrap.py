@@ -62,6 +62,50 @@ def test_hook_prefers_console_script():
     assert "aethel lint" in PRE_COMMIT_HOOK
 
 
+def test_hook_has_windows_venv_probe():
+    """#3: the Windows venv interpreter is `python.exe`; the hook must probe it
+    BEFORE the extension-less POSIX name, else it falls through to bare `python`
+    (usually without aethel) and silently skips the guard."""
+    assert "./venv/Scripts/python.exe" in PRE_COMMIT_HOOK
+    win = PRE_COMMIT_HOOK.index("./venv/Scripts/python.exe")
+    posix = PRE_COMMIT_HOOK.index("./venv/bin/python")
+    assert win < posix, "Windows .exe probe must come before the POSIX venv probe"
+
+
+def test_hook_is_fail_closed():
+    """#2: a missing install must BLOCK the commit in hook context, not warn-skip.
+    The generated hook bakes AETHEL_REQUIRE=1 so the wrapper's degrade path fails
+    closed (manual `python prompt_linter.py` outside the hook stays lenient)."""
+    assert "AETHEL_REQUIRE=1" in PRE_COMMIT_HOOK
+
+
+def _init_git_dir(tmp_path):
+    (tmp_path / ".git" / "hooks").mkdir(parents=True)
+
+
+def test_write_hook_instructs_under_hooksPath(tmp_path, monkeypatch, capsys):
+    """#1: when a manager owns hooks (core.hooksPath set), Aethel must NOT write a
+    dead `.git/hooks/pre-commit`; it prints an instruction and writes nothing."""
+    import aethel.cli as cli
+    _init_git_dir(tmp_path)
+    monkeypatch.setattr(cli, "_git_config", lambda _ws, _key: ".husky/_")
+    cli.write_pre_commit_hook(str(tmp_path), "Configured")
+    out = capsys.readouterr().out.lower()
+    assert "core.hookspath" in out or "hooks are managed" in out
+    assert "aethel lint" in out
+    assert not (tmp_path / ".git" / "hooks" / "pre-commit").exists()
+
+
+def test_write_hook_default_when_no_hooksPath(tmp_path, monkeypatch):
+    """#1 regression guard: with no core.hooksPath, behavior is unchanged — the
+    hook is written to `.git/hooks/pre-commit`."""
+    import aethel.cli as cli
+    _init_git_dir(tmp_path)
+    monkeypatch.setattr(cli, "_git_config", lambda _ws, _key: None)
+    cli.write_pre_commit_hook(str(tmp_path), "Configured")
+    assert (tmp_path / ".git" / "hooks" / "pre-commit").exists()
+
+
 def test_init_warns_when_not_importable(tmp_path, monkeypatch, capsys):
     import aethel.cli as cli
     monkeypatch.setattr(cli, "resolve_hook_python", lambda _p: "python")

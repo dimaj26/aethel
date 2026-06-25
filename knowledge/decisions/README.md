@@ -19,3 +19,4 @@ historical).
 - [ADR 0005 — Multi-slot concurrent sessions](0005-multi-slot-sessions.md) — many live sessions; selector `--session` > `AETHEL_SESSION` > `CURRENT`; archival is explicit `done`/`abandon`, not a `start` side effect.
 - [ADR 0006 — Core block uses an integer revision, not semver](0006-core-revision-not-semver.md) — `CORE-REV N` unconfusable with the semver package version; PyPI axis surfaced live by `aethel doctor`.
 - [ADR 0007 — Agent layer as a first-class protocol (Route D + registry)](0007-agent-registry-route-d.md) — analysis delegates to a registered agent; closed `knowledge/agents.md` is the only teeth; `[A-]` tags / Route-D sessions dropped.
+- [ADR 0008 — Hook is fail-closed; foreign hooks never edited](0008-hook-fail-closed.md) — generated hook bakes `AETHEL_REQUIRE=1` (amends 0003); Windows `python.exe` probe; `core.hooksPath` → detect-and-instruct; `doctor` reports hook liveness.

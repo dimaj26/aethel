@@ -32,8 +32,10 @@ and ships a CLI + linter that scaffold, update, and validate a workspace.
 `aethel init` scaffolds a workspace from `aethel/templates`; `aethel update` refreshes the
 managed core block non-destructively; `aethel lint` runs the checks. `aethel version` prints the
 package + core versions; `aethel doctor` diagnoses a workspace — version skew, core-block
-consistency (shared `classify_core_state`, see [core consistency](core-consistency.md)), and
-whether `aethel` is importable by the pre-commit hook's interpreter (exit 1 on a hard problem).
+consistency (shared `classify_core_state`, see [core consistency](core-consistency.md)),
+whether `aethel` is importable by the pre-commit hook's interpreter (exit 1 on a hard problem),
+and **pre-commit hook liveness** (`live`/`DEAD`/`foreign`/`absent`): a `core.hooksPath` set by a
+hook manager whose pre-commit lacks the Aethel invocation is reported `DEAD`.
 See [linter checks](linter-checks.md), [recipe discovery](recipes.md), and
 [spec architecture](spec-architecture.md).
 
@@ -53,8 +55,15 @@ causes of the templates-missing bug — a wildcard in `packages.find` and an una
 ## Install & bootstrap
 Recommended install is **pipx** (`pipx install aethel-cli`) — a global CLI the pre-commit hook finds via
 `command -v aethel`, independent of any project venv; for development, `pip install -e .` inside the
-venv. The generated hook **degrades gracefully** when `aethel` is not importable: it warns and skips
-(exit 0) rather than blocking the commit, unless `AETHEL_REQUIRE` is set (strict mode, mirror of
-`AETHEL_SKIP_SYNC`); real lint violations still fail. `aethel init` probes the hook interpreter and
-prints the install command when the package is missing, without editing dependencies. See
-[ADR 0003](decisions/0003-hook-degradation.md).
+venv. The generated hook is **fail-closed**: it bakes `export AETHEL_REQUIRE=1`, so a missing install
+*blocks* the commit with the install command rather than silently skipping the guard (a silent skip of
+a process guard is the wrong default). The wrapper run manually outside the hook stays lenient (its
+default still warns-and-skips). The hook probes the Windows venv interpreter (`venv/Scripts/python.exe`)
+before the extension-less POSIX name. `aethel init` probes the hook interpreter and prints the install
+command when the package is missing, without editing dependencies.
+
+When a **hook manager owns the hooks** (`core.hooksPath` set by husky/lefthook/pre-commit), `init`/
+`update` do NOT write a dead `.git/hooks/pre-commit` (git would ignore it); they print a manager-
+specific instruction to add `aethel lint .`, and `aethel doctor` reports the hook `DEAD` until it is.
+Aethel never edits a foreign hook file. See [ADR 0003](decisions/0003-hook-degradation.md) (amended by
+[ADR 0008](decisions/0008-hook-fail-closed.md)).

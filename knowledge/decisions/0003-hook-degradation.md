@@ -5,7 +5,7 @@ description: Missing-install degrades to warn-skip (exit 0); strict mode via AET
 
 # ADR 0003 — Pre-commit Hook Degrades on a Missing Install
 
-- **Status:** Accepted
+- **Status:** Accepted (hook-context leniency amended by [ADR 0008](0008-hook-fail-closed.md))
 - **Date:** 2026-06-23
 
 ## Context

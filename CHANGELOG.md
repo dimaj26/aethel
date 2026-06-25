@@ -3,6 +3,19 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Fixed
+- **P0 silent-failure trio: the pre-commit hook can no longer be inert without warning** (field
+  report on a husky-managed Windows repo). Three compounding defects let a "hardened" Aethel hook
+  silently no-op: (1) `init` wrote `.git/hooks/pre-commit` without checking `core.hooksPath`, so a
+  hook manager (husky/lefthook/pre-commit) made it dead on arrival; (2) the generated hook was
+  fail-open on a missing install (warn-skip exit 0), so any clone/CI without the exact venv skipped
+  every guard; (3) the hook probed `./venv/Scripts/python` but the Windows interpreter is
+  `python.exe`, falling through to a bare `python` without aethel. Now: the generated hook is
+  **fail-closed** (bakes `export AETHEL_REQUIRE=1`; manual wrapper use outside the hook stays
+  lenient), probes `venv/Scripts/python.exe` first, and when `core.hooksPath` is set it prints a
+  manager-specific instruction instead of writing a dead hook (Aethel never edits a foreign hook
+  file). `aethel doctor` gained a hook-liveness line (`live`/`DEAD`/`foreign`/`absent`). No
+  managed-core-block change. ADR 0008 (amends 0003); `tests/test_bootstrap.py`, `tests/test_doctor.py`.
 
 ## [1.6.0] - 2026-06-25
 ### Added
