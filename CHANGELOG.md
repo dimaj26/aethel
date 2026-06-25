@@ -3,6 +3,8 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+
+## [1.6.0] - 2026-06-25
 ### Added
 - **Route D (Analysis) + a closed agent registry — agents are now reachable from the protocol**
   (core block changed; `CORE-REV 7` → `8`). The `proposal-analysis` audit engine lived under the
