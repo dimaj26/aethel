@@ -86,6 +86,9 @@ Every complex plan must be structured as follows:
 ## User Review Required
 - Highlight critical design choices, breaking changes, or trade-offs.
 
+## Open Questions
+- Unresolved design decisions or ambiguities needing the user's input (write "None" if there are none).
+
 ## Base DNA
 - OS, stack, runtime constraints.
 

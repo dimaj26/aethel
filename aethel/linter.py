@@ -210,6 +210,12 @@ def _unresolved_ck_tags(content: str, workspace_path: str) -> list[str]:
     return unresolved
 
 
+# The plan sections the linter REQUIRES, single-sourced so the documented RNA template
+# (AETHEL.md §2 / AETHEL.md.template) cannot silently drift from what `check_plan_file`
+# enforces. `tests/test_plan_template_sync.py` asserts both carry every entry.
+REQUIRED_PLAN_H2S = ["User Review Required", "Open Questions", "Proposed Changes", "Verification Plan"]
+
+
 def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tuple[list[str], list[str]]:
     """Validates implementation_plan.md format and language."""
     cfg = _resolve_cfg(workspace_path, cfg)
@@ -226,8 +232,7 @@ def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tup
     if not re.search(r"^#\s+\S+", content, re.MULTILINE):
         errors.append("Missing H1 Goal Description header (e.g., '# Goal Description').")
 
-    required_h2s = ["User Review Required", "Open Questions", "Proposed Changes", "Verification Plan"]
-    for h2 in required_h2s:
+    for h2 in REQUIRED_PLAN_H2S:
         if not re.search(r"^##\s+" + re.escape(h2), content, re.MULTILINE):
             errors.append(f"Missing required H2 section: '## {h2}'.")
 
@@ -266,8 +271,17 @@ def check_plan_file(workspace_path: str, cfg: AethelConfig | None = None) -> tup
     return errors, warnings
 
 
-def check_checklist_file(workspace_path: str, cfg: AethelConfig | None = None) -> tuple[list[str], list[str]]:
-    """Validates task.md format and language."""
+def check_checklist_file(
+    workspace_path: str, cfg: AethelConfig | None = None, require_complete: bool = True
+) -> tuple[list[str], list[str]]:
+    """Validates task.md format and language.
+
+    ``require_complete`` separates STRUCTURE validation (always run: well-formed items,
+    a final 'run checklist-linter' item) from COMPLETENESS (open ``[ ]``/``[/]`` items).
+    The default/pre-commit path passes ``False`` so an in-progress checklist does not
+    block every commit during a multi-chunk Route B task (AETHEL.md §2 chunking, §4
+    milestone auto-commit); completeness is enforced only at the explicit ``--stage
+    checklist`` finalization step (§2.8), where ``require_complete`` stays ``True``."""
     cfg = _resolve_cfg(workspace_path, cfg)
     errors: list[str] = []
     warnings: list[str] = []
@@ -290,9 +304,14 @@ def check_checklist_file(workspace_path: str, cfg: AethelConfig | None = None) -
         errors.append("No task checklist items found in task.md.")
         return errors, warnings
 
-    for status, text in tasks:
-        if status in (" ", "/"):
+    open_items = [(s, t) for s, t in tasks if s in (" ", "/")]
+    if require_complete:
+        for status, text in open_items:
             errors.append(f"Incomplete task: [{status}] {text}")
+    elif open_items:
+        # Lenient (per-commit) mode: surface remaining work, do not block.
+        warnings.append(f"{len(open_items)} checklist item(s) still open (not blocking; "
+                        f"completeness is enforced at `--stage checklist`).")
 
     # Last task check
     last_status, last_text = tasks[-1]
@@ -368,7 +387,9 @@ def check_plan_stage(workspace_path: str, cfg: AethelConfig | None = None) -> bo
 
     task_ok = True
     if os.path.exists(task_path):
-        errs, warns = check_checklist_file(workspace_path, cfg)
+        # Default/pre-commit lint validates checklist STRUCTURE only — open items must
+        # not block incremental commits (#4); completeness is the `--stage checklist` gate.
+        errs, warns = check_checklist_file(workspace_path, cfg, require_complete=False)
         for w in warns:
             print_warning(w)
         for e in errs:
@@ -562,6 +583,11 @@ def check_knowledge_index(workspace_path: str, cfg: AethelConfig | None = None) 
 
 
 _SKILL_FILENAME = "SKILL.md"
+# A backticked *path* naming a SKILL.md, e.g. `../.agents/plugins/p/skills/demo/SKILL.md`.
+# Accepted as a registration form alongside inline links (both resolved on disk identically).
+# Requires a real path separator and path-only chars, so a bare `SKILL.md` or a `<placeholder>/
+# SKILL.md` used illustratively in prose does NOT count as a registration (avoids false danglers).
+_BACKTICK_SKILL_RE = re.compile(r"`([\w./\\-]+/SKILL\.md)`")
 
 
 def _discover_skill_files(agents_root: str) -> list[str]:
@@ -616,15 +642,23 @@ def check_agent_registry(workspace_path: str, cfg: AethelConfig | None = None) -
         with open(registry_path, "r", encoding="utf-8") as f:
             content = f.read()
         registry_dir = os.path.dirname(registry_path)
-        for target in _extract_inline_links(content):
-            stem = target.split("#", 1)[0].strip().replace("\\", "/")
-            if os.path.basename(stem) != _SKILL_FILENAME:
-                continue  # only links naming a SKILL.md register an agent
+        # A skill-agent is registered by an inline link OR a backticked path naming a
+        # SKILL.md (authors reach for either). Both forms resolve through the SAME
+        # on-disk check, so a backtick path to a missing file is a dangling ERROR, not a
+        # silent "registered" — the closed-registry contract stays honest (Route D §1).
+        inline = [
+            t for t in _extract_inline_links(content)
+            if os.path.basename(t.split("#", 1)[0].strip().replace("\\", "/")) == _SKILL_FILENAME
+        ]
+        backticked = _BACKTICK_SKILL_RE.findall(content)
+        for target in dict.fromkeys(inline + backticked):  # dedupe, preserve order
             resolved = _local_link_target(target, registry_dir)
             if resolved is None:
                 if _emit(
                     cfg.agent_dangling_enforce,
-                    f"Agent registry dangling link: '{target}' does not resolve to a SKILL.md on disk.",
+                    f"Agent registry dangling reference: '{target}' does not resolve to a "
+                    f"SKILL.md on disk (register a skill-agent with an inline link or backticked "
+                    f"path to an existing SKILL.md).",
                 ):
                     has_errors = True
                 continue
@@ -632,16 +666,22 @@ def check_agent_registry(workspace_path: str, cfg: AethelConfig | None = None) -
     elif discovered and _emit(
         cfg.agent_orphan_enforce,
         f"Agent registry '{cfg.agents_registry}' not found, but "
-        f"{len(discovered)} agent(s) exist under '{cfg.agents_dir}'.",
+        f"{len(discovered)} skill-agent(s) exist under '{cfg.agents_dir}'.",
     ):
         has_errors = True
 
     for skill in sorted(discovered):
         if os.path.normcase(skill) not in registered:
             rel = os.path.relpath(skill, workspace_path).replace("\\", "/")
+            name = os.path.basename(os.path.dirname(skill)) or "agent"
+            rel_from_registry = os.path.relpath(
+                skill, os.path.dirname(registry_path)
+            ).replace("\\", "/")
             if _emit(
                 cfg.agent_orphan_enforce,
-                f"Orphan agent: '{rel}' is not registered in '{cfg.agents_registry}'.",
+                f"Orphan skill-agent: '{rel}' is not registered in '{cfg.agents_registry}'. "
+                f"Register it with an inline link (or backticked path) to its SKILL.md, e.g. "
+                f"[{name}]({rel_from_registry}).",
             ):
                 has_errors = True
 

@@ -3,6 +3,21 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Changed
+- **P1 workflow correctness: the documented Route B flow is now executable & self-describing**
+  (field report Phase 2; **core block changed, `CORE-REV 8` → `9`**). Three defects where Aethel
+  contradicted its own docs: (#4) the default/pre-commit lint blocked *every* commit while `task.md`
+  had open checklist items, making the §2 chunked workflow impossible — completeness is now a
+  *finalization* gate (`--stage checklist`, §2.8) via a new `require_complete`; the per-commit lint
+  validates checklist structure only and reports remaining items as a non-blocking note. (#5) the
+  shipped RNA plan template omitted `## Open Questions`, which the plan linter requires — the required
+  set is now single-sourced as `REQUIRED_PLAN_H2S`, added to the template §2 and root AETHEL.md §2,
+  and guarded by `tests/test_plan_template_sync.py` so doc↔linter drift cannot silently recur. (#6)
+  skill-agent registration accepted only an inline `SKILL.md` link with an unhelpful orphan error —
+  a backticked `` `path/SKILL.md` `` now also registers (resolved through the same on-disk/dangling
+  check, per the Route D audit), and the dangling/orphan messages state the canonical form and say
+  "skill-agent". `tests/test_linter.py`, `tests/test_agent_registry.py`, `tests/test_version.py`.
+
 ### Fixed
 - **P0 silent-failure trio: the pre-commit hook can no longer be inert without warning** (field
   report on a husky-managed Windows repo). Three compounding defects let a "hardened" Aethel hook

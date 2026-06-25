@@ -40,7 +40,11 @@ see [session lifecycle](session-lifecycle.md)).
   absent. An unresolved tag (bad slug, or a legacy `[G-]` number absent from §5) is routed by
   `[plan] tag_reference_enforce` (library default `warn`; this repo promotes it to `error`, since
   it defines the convention).
-- `check_checklist_file` — `task.md` items are all complete and the last item runs the linter.
+- `check_checklist_file` — `task.md` structure (well-formed items, last item runs the linter) is
+  validated on every lint; **completeness** (no open `[ ]`/`[/]`) is enforced only at the explicit
+  `--stage checklist` finalization step (§2.8), via `require_complete`. The default/pre-commit lint
+  passes `require_complete=False` so open items do not block incremental commits during a multi-chunk
+  Route B task (§2 chunking, §4 milestone auto-commit); it surfaces the remaining count as a note.
 - `check_report_file` — `walkthrough.md` has Changes made / What was tested / Validation results.
 
 ## Knowledge-index integrity (`check_knowledge_index`)
@@ -68,10 +72,13 @@ registry (default `knowledge/agents.md`, `[agents] registry`). Skill-agents live
 `.agents/` tree (`[agents] dir`), so discovery walks that tree **directly** (`_discover_skill_files`,
 `os.walk` — not a git-tracked listing), keeping gitignored agents visible (the [discovery-discipline]
 lesson, roadmap [18]). Bidirectional:
-- a registry inline link naming a `SKILL.md` that does not resolve on disk → dangling link,
-  `[agents] dangling_enforce` (library default **error**);
-- a `SKILL.md` discovered under `.agents/` but absent from the registry → orphan, `[agents]
-  orphan_enforce` (library default **warn**; this repo promotes both to **error**).
+- a registry reference naming a `SKILL.md` that does not resolve on disk → dangling reference,
+  `[agents] dangling_enforce` (library default **error**). A skill-agent registers via an **inline
+  link** `[name](path/SKILL.md)` *or* a **backticked path** `` `path/SKILL.md` ``; both forms resolve
+  through the same on-disk check, so a backtick path to a missing file is dangling, not silent.
+- a `SKILL.md` discovered under `.agents/` but absent from the registry → orphan skill-agent,
+  `[agents] orphan_enforce` (library default **warn**; this repo promotes both to **error**). The
+  orphan error states the canonical registration form.
 
 Fails **open**: with neither a registry nor any agent there is nothing to validate (a fresh
 workspace stays green). Runs in `run_linter` and the parameterless `main` path, next to

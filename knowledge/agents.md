@@ -11,8 +11,11 @@ Skill-agents live under the gitignored `.agents/` tree, so they are invisible to
 registry ⇒ it does not exist* — a chat must never invent or spawn an unlisted agent.
 
 `check_agent_registry` ([linter-checks](linter-checks.md)) keeps the list honest in both directions:
-a registry link to a missing `SKILL.md` is a dangling link (error), and a `SKILL.md` discovered
-under `.agents/` but absent here is an orphan (warn) — promoted to error in this repo's `aethel.toml`.
+a registry reference to a missing skill file is a dangling reference (error), and a skill file
+discovered under `.agents/` but absent here is an orphan (warn) — promoted to error in this repo's
+`aethel.toml`. **Register a skill-agent** with an inline Markdown link — or a backticked path —
+pointing at its skill file under `.agents/`; both resolve on disk identically (exact form in
+[linter-checks](linter-checks.md)). The live registration below is the worked example.
 
 > **Scope.** The registry covers *skill-agents* (a `SKILL.md` under `.agents/`). Ad-hoc framework
 > agents selected by `subagent_type` (Explore, Plan, general-purpose, …) are spawned by the host and

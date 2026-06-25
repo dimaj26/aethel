@@ -10,4 +10,4 @@ __version__ = "1.6.0"
 # `AETHEL:CORE-REV N` and compared by `check_core_consistency` to tell a stale workspace
 # ("run aethel update") from a hand-edited one. Bumped whenever the core block changes,
 # independently of package releases. See knowledge/versioning.md and ADR 0006.
-CORE_REVISION: int = 8
+CORE_REVISION: int = 9

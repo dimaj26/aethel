@@ -37,7 +37,7 @@ def test_registered_agent_passes(tmp_path, capsys):
     ok = check_agent_registry(str(tmp_path), _ORPHAN_ERR)
     out = capsys.readouterr().out
     assert ok is True
-    assert "Orphan agent" not in out and "dangling" not in out
+    assert "orphan" not in out.lower() and "dangling" not in out.lower()
 
 
 def test_orphan_skill_warns_not_errors_by_default(tmp_path, capsys):
@@ -47,7 +47,7 @@ def test_orphan_skill_warns_not_errors_by_default(tmp_path, capsys):
     ok = check_agent_registry(str(tmp_path), AethelConfig())  # defaults
     out = capsys.readouterr().out
     assert ok is True  # warn does not block
-    assert "Orphan agent" in out and "demo/SKILL.md" in out
+    assert "Orphan skill-agent" in out and "demo/SKILL.md" in out
 
 
 def test_orphan_skill_errors_when_promoted(tmp_path, capsys):
@@ -56,7 +56,7 @@ def test_orphan_skill_errors_when_promoted(tmp_path, capsys):
     ok = check_agent_registry(str(tmp_path), _ORPHAN_ERR)
     out = capsys.readouterr().out
     assert ok is False
-    assert "Orphan agent" in out
+    assert "Orphan skill-agent" in out
 
 
 def test_dangling_link_errors(tmp_path, capsys):
@@ -73,4 +73,34 @@ def test_absent_agents_and_registry_is_clean(tmp_path, capsys):
     ok = check_agent_registry(str(tmp_path), _ORPHAN_ERR)
     out = capsys.readouterr().out
     assert ok is True
-    assert "Orphan agent" not in out and "dangling" not in out.lower()
+    assert "orphan" not in out.lower() and "dangling" not in out.lower()
+
+
+def test_backticked_path_registers(tmp_path, capsys):
+    """#6: a backticked `path/SKILL.md` counts as registration, not only an inline link."""
+    _skill(tmp_path, ".agents/plugins/p/skills/demo/SKILL.md")
+    _registry(tmp_path, "## demo\n- `../.agents/plugins/p/skills/demo/SKILL.md` — audit\n")
+    ok = check_agent_registry(str(tmp_path), _ORPHAN_ERR)
+    out = capsys.readouterr().out
+    assert ok is True
+    assert "orphan" not in out.lower() and "dangling" not in out.lower()
+
+
+def test_backticked_path_to_missing_is_dangling(tmp_path, capsys):
+    """#6 integrity condition (Route D audit): a backticked path resolves through the
+    SAME on-disk check as an inline link — a backtick path to a missing SKILL.md is a
+    dangling error, never a silent 'registered'."""
+    _registry(tmp_path, "## ghost\n- `../.agents/plugins/p/skills/ghost/SKILL.md` — gone\n")
+    ok = check_agent_registry(str(tmp_path), AethelConfig())  # dangling defaults to error
+    out = capsys.readouterr().out
+    assert ok is False
+    assert "dangling" in out.lower()
+
+
+def test_orphan_error_states_registration_form(tmp_path, capsys):
+    """#6: the orphan message must state HOW to register (the canonical inline-link form)."""
+    _skill(tmp_path, ".agents/plugins/p/skills/demo/SKILL.md")
+    _registry(tmp_path, "## (none)\n")
+    check_agent_registry(str(tmp_path), _ORPHAN_ERR)
+    out = capsys.readouterr().out
+    assert "SKILL.md)" in out  # shows [name](relative/path/SKILL.md)

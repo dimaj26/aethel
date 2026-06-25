@@ -1,5 +1,5 @@
 <!-- AETHEL:MANAGED:BEGIN id=aethel-core -->
-<!-- AETHEL:CORE-REV 8 -->
+<!-- AETHEL:CORE-REV 9 -->
 # Aethel Development Orchestrator & AI Protocol (AETHEL.md)
 
 Welcome, AI Developer. This file is the official human-written orchestrator and rulebook. It defines your behavioral boundaries, decision routing, planning blueprints, and development standards.
@@ -79,6 +79,9 @@ Every complex plan must be structured as follows:
 
 ## User Review Required
 - Highlight critical design choices, breaking changes, or trade-offs.
+
+## Open Questions
+- Unresolved design decisions or ambiguities needing the user's input (write "None" if there are none).
 
 ## Base DNA
 - OS, stack, runtime constraints.

@@ -8,9 +8,11 @@ from aethel.linter import (
     _heading_present,
     _installed_core_block,
     check_changelog_sync,
+    check_checklist_file,
     check_core_consistency,
     check_knowledge_index,
     check_plan_file,
+    check_plan_stage,
     check_report_file,
     check_spec_sync,
 )
@@ -315,3 +317,29 @@ def test_plan_language_respects_config(tmp_path):
     # "any" disables the language warning.
     errs, warns = check_plan_file(str(tmp_path), AethelConfig(artifact_lang="any"))
     assert warns == []
+
+
+# --- #4: checklist gate is a finalization gate, not a per-commit gate ---
+_OPEN_TASK = "- [x] done step\n- [ ] open step\n- [/] in progress\n- [ ] run checklist-linter\n"
+
+
+def test_open_checklist_passes_default_lint(tmp_path):
+    """The default/pre-commit lint (check_plan_stage) validates STRUCTURE only, so
+    a task.md with open items no longer blocks every commit (#4)."""
+    (tmp_path / "task.md").write_text(_OPEN_TASK, encoding="utf-8")
+    assert check_plan_stage(str(tmp_path), AethelConfig()) is True
+
+
+def test_open_checklist_fails_checklist_stage(tmp_path):
+    """Completeness is still enforced at the explicit `--stage checklist`
+    finalization step (require_complete defaults True)."""
+    (tmp_path / "task.md").write_text(_OPEN_TASK, encoding="utf-8")
+    errors, _ = check_checklist_file(str(tmp_path), AethelConfig())
+    assert any("Incomplete task" in e for e in errors)
+
+
+def test_malformed_checklist_still_blocks_default_lint(tmp_path):
+    """A real malformation (missing 'run checklist-linter' last item) is a structure
+    error that blocks even in the lenient default path — it is not 'work in progress'."""
+    (tmp_path / "task.md").write_text("- [x] a\n- [x] b\n", encoding="utf-8")
+    assert check_plan_stage(str(tmp_path), AethelConfig()) is False
