@@ -34,3 +34,10 @@ tag_reference_enforce = "error"
 # reachability is transitive (ADRs are reached via knowledge/decisions/README.md), so the
 # index stays curated without leaving any file invisible. See ADR 0002.
 orphan_enforce = "error"
+
+# Route D agent registry: this repo defines the convention, so it enforces it on itself at full
+# strength. Both directions are "error" (library defaults are dangling=error / orphan=warn): a
+# registry link to a missing SKILL.md AND a SKILL.md missing from the registry both block here.
+[agents]
+orphan_enforce = "error"
+dangling_enforce = "error"

@@ -3,6 +3,23 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Added
+- **Route D (Analysis) + a closed agent registry — agents are now reachable from the protocol**
+  (core block changed; `CORE-REV 7` → `8`). The `proposal-analysis` audit engine lived under the
+  gitignored `.agents/` tree, invisible to default search and to the protocol, so a chat asked to
+  "analyse via an agent" would invent a non-existent one. Now AETHEL.md §1 has **Route D** (a
+  distinct stage from Route B: it *judges*, not *builds*; fires only on an explicit
+  evaluate/review/critique request) that delegates to an agent listed in the closed registry
+  `knowledge/agents.md` ("not in the registry ⇒ does not exist"). `check_agent_registry` keeps the
+  list honest bidirectionally — a registry link to a missing `SKILL.md` is a dangling link
+  (`[agents] dangling_enforce`, default error) and an unlisted `SKILL.md` under `.agents/` is an
+  orphan (`[agents] orphan_enforce`, default warn; this repo promotes both to error). Discovery walks
+  `.agents/` directly so gitignored agents stay visible (roadmap [18]). A §6 **spawn-prelude
+  contract** requires every delegation prompt to name a registered agent and inject AETHEL.md + CC
+  tags + data + result contract (prose; the prelude's content is not linter-visible). Considered and
+  dropped: an `[A-]` reference tag (false analogy with plan-internal `[G-/C-/K-]`) and a dedicated
+  Route-D session/`analysis.md` lifecycle (over-engineering) — see ADR 0007. New `knowledge/agents.md`;
+  `tests/test_agent_registry.py`; roadmap [17].
 
 ## [1.5.0] - 2026-06-24
 ### Fixed

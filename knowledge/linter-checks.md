@@ -62,6 +62,22 @@ default; only index links whose target resolves under the knowledge dir are chec
 external links are never flagged). Severities: `[knowledge] dead_link_enforce` / `orphan_enforce` /
 `annotation_enforce`.
 
+## Agent registry integrity (`check_agent_registry`)
+Backs **Route D** (AETHEL.md §1): analysis is delegated only to an agent listed in the closed
+registry (default `knowledge/agents.md`, `[agents] registry`). Skill-agents live under a gitignored
+`.agents/` tree (`[agents] dir`), so discovery walks that tree **directly** (`_discover_skill_files`,
+`os.walk` — not a git-tracked listing), keeping gitignored agents visible (the [discovery-discipline]
+lesson, roadmap [18]). Bidirectional:
+- a registry inline link naming a `SKILL.md` that does not resolve on disk → dangling link,
+  `[agents] dangling_enforce` (library default **error**);
+- a `SKILL.md` discovered under `.agents/` but absent from the registry → orphan, `[agents]
+  orphan_enforce` (library default **warn**; this repo promotes both to **error**).
+
+Fails **open**: with neither a registry nor any agent there is nothing to validate (a fresh
+workspace stays green). Runs in `run_linter` and the parameterless `main` path, next to
+`check_knowledge_index`. The registry itself is a `knowledge/*.md` topic, so it is also subject to
+the knowledge-index reachability/annotation checks. See [ADR 0007](decisions/0007-agent-registry-route-d.md).
+
 ## Workspace hygiene (`check_workspace_hygiene`)
 Core files present (`AETHEL.md`, `CONTEXT.md`, `.gitattributes`), knowledge dir present,
 required AETHEL/CONTEXT headers, no `LEGACY_*` or `AETHEL_ONBOARDING.md` left behind, and

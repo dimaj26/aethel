@@ -61,6 +61,11 @@ DEFAULT_KNOWLEDGE_DIR = "knowledge"
 DEFAULT_RULE_FILES = ["AETHEL.md"]
 DEFAULT_CHANGELOG_FILE = "CHANGELOG.md"
 
+# Agent registry (Route D). Skill-agents live under a gitignored `.agents/` tree; the registry
+# is a curated `knowledge/*.md` topic that names each one (so the index can surface them).
+DEFAULT_AGENTS_DIR = ".agents"
+DEFAULT_AGENTS_REGISTRY = "knowledge/agents.md"
+
 _VALID_ENFORCE = {"error", "warn", "off"}
 _VALID_LANG = {"en", "ru", "any"}
 
@@ -105,6 +110,13 @@ class AethelConfig:
     report_sections: list[str] = field(default_factory=lambda: list(DEFAULT_REPORT_SECTIONS))
     aethel_dir: str = ".aethel"  # gitignored root of the per-session working-dir tree
     recipes_dir: str | None = None  # extra recipe base (personal recipes); None = none configured
+    # Agent registry (Route D): the closed source-of-truth listing spawnable skill-agents that
+    # live under a gitignored `.agents/` tree. The registry makes them discoverable from the index
+    # ("not in the registry => does not exist"); the check keeps it honest in both directions.
+    agents_dir: str = DEFAULT_AGENTS_DIR  # root of the gitignored agent (skill) tree
+    agents_registry: str = DEFAULT_AGENTS_REGISTRY  # the registry topic file (a knowledge/*.md)
+    agent_orphan_enforce: str = "warn"  # error | warn | off (a .agents SKILL.md absent from the registry)
+    agent_dangling_enforce: str = "error"  # error | warn | off (a registry link to a missing SKILL.md)
 
 
 def _coerce_enforce(value: object, fallback: str) -> str:
@@ -221,3 +233,14 @@ def _apply_overrides(cfg: AethelConfig, data: dict) -> None:
         rdir = recipes.get("dir")
         if isinstance(rdir, str) and rdir:
             cfg.recipes_dir = rdir
+
+    agents = data.get("agents", {})
+    if isinstance(agents, dict):
+        adir = agents.get("dir")
+        if isinstance(adir, str) and adir:
+            cfg.agents_dir = adir
+        areg = agents.get("registry")
+        if isinstance(areg, str) and areg:
+            cfg.agents_registry = areg
+        cfg.agent_orphan_enforce = _coerce_enforce(agents.get("orphan_enforce"), cfg.agent_orphan_enforce)
+        cfg.agent_dangling_enforce = _coerce_enforce(agents.get("dangling_enforce"), cfg.agent_dangling_enforce)

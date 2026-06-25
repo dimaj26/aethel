@@ -561,6 +561,96 @@ def check_knowledge_index(workspace_path: str, cfg: AethelConfig | None = None) 
     return True
 
 
+_SKILL_FILENAME = "SKILL.md"
+
+
+def _discover_skill_files(agents_root: str) -> list[str]:
+    """Every ``SKILL.md`` under the agents tree, as real (display-case) paths.
+
+    Walks the directory tree DIRECTLY (``os.walk``) rather than any git-tracked
+    listing, so an agent under a gitignored ``.agents/`` is still discovered — the
+    discipline lesson from roadmap [18] (a gitignore-filtered search hides agents
+    that very much exist). A missing tree yields an empty list (fail open).
+    Matching is case-folded by the caller (``os.path.normcase``); the real path is
+    kept here so a Windows finding prints ``SKILL.md``, not a lower-cased path."""
+    discovered: list[str] = []
+    if not os.path.isdir(agents_root):
+        return discovered
+    for root, _dirs, files in os.walk(agents_root):
+        for fname in files:
+            if fname == _SKILL_FILENAME:
+                discovered.append(os.path.normpath(os.path.join(root, fname)))
+    return discovered
+
+
+def check_agent_registry(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
+    """Validate the closed agent registry against the on-disk ``.agents/`` tree.
+
+    Route D delegates analysis to a REGISTERED agent ("not in the registry => does
+    not exist"), so the registry (a curated ``knowledge/*.md`` topic) must stay
+    honest in both directions:
+
+    * every registry inline link naming a ``SKILL.md`` resolves on disk — a
+      dangling link is an error by default (``agent_dangling_enforce``);
+    * every ``SKILL.md`` discovered under the agents tree is registered — an
+      unlisted one is an orphan warning by default (``agent_orphan_enforce``).
+
+    Fails OPEN: with neither a registry nor any agent there is nothing to validate.
+    Returns False only on an error-severity problem.
+    """
+    cfg = _resolve_cfg(workspace_path, cfg)
+    print("--- Running Agent Registry Integrity Validation ---")
+    agents_root = os.path.join(workspace_path, cfg.agents_dir)
+    registry_path = os.path.join(workspace_path, cfg.agents_registry)
+    discovered = _discover_skill_files(agents_root)
+    has_registry = os.path.exists(registry_path)
+
+    if not discovered and not has_registry:
+        print_success("No agents and no registry; nothing to validate.")
+        return True
+
+    has_errors = False
+    registered: set[str] = set()
+
+    if has_registry:
+        with open(registry_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        registry_dir = os.path.dirname(registry_path)
+        for target in _extract_inline_links(content):
+            stem = target.split("#", 1)[0].strip().replace("\\", "/")
+            if os.path.basename(stem) != _SKILL_FILENAME:
+                continue  # only links naming a SKILL.md register an agent
+            resolved = _local_link_target(target, registry_dir)
+            if resolved is None:
+                if _emit(
+                    cfg.agent_dangling_enforce,
+                    f"Agent registry dangling link: '{target}' does not resolve to a SKILL.md on disk.",
+                ):
+                    has_errors = True
+                continue
+            registered.add(os.path.normcase(os.path.normpath(resolved)))
+    elif discovered and _emit(
+        cfg.agent_orphan_enforce,
+        f"Agent registry '{cfg.agents_registry}' not found, but "
+        f"{len(discovered)} agent(s) exist under '{cfg.agents_dir}'.",
+    ):
+        has_errors = True
+
+    for skill in sorted(discovered):
+        if os.path.normcase(skill) not in registered:
+            rel = os.path.relpath(skill, workspace_path).replace("\\", "/")
+            if _emit(
+                cfg.agent_orphan_enforce,
+                f"Orphan agent: '{rel}' is not registered in '{cfg.agents_registry}'.",
+            ):
+                has_errors = True
+
+    if has_errors:
+        return False
+    print_success("Agent registry integrity check passed successfully.")
+    return True
+
+
 def _check_required_headers(
     file_label: str, content: str, keywords: list[str], cfg: AethelConfig
 ) -> bool:
@@ -1059,9 +1149,13 @@ def run_linter(workspace_path: str = ".") -> bool:
     print()
     knowledge_ok = check_knowledge_index(workspace_path, cfg)
     print()
-    hygiene_ok = check_workspace_hygiene(workspace_path, other_checks_passed=(plan_ok and knowledge_ok), cfg=cfg)
+    agents_ok = check_agent_registry(workspace_path, cfg)
     print()
-    return plan_ok and knowledge_ok and hygiene_ok
+    hygiene_ok = check_workspace_hygiene(
+        workspace_path, other_checks_passed=(plan_ok and knowledge_ok and agents_ok), cfg=cfg
+    )
+    print()
+    return plan_ok and knowledge_ok and agents_ok and hygiene_ok
 
 
 def ensure_resilient_stdio() -> None:
@@ -1114,13 +1208,17 @@ def main() -> None:
         print()
         knowledge_ok = check_knowledge_index(workspace, cfg)
         print()
-        hygiene_ok = check_workspace_hygiene(workspace, other_checks_passed=(plan_ok and knowledge_ok), cfg=cfg)
+        agents_ok = check_agent_registry(workspace, cfg)
+        print()
+        hygiene_ok = check_workspace_hygiene(
+            workspace, other_checks_passed=(plan_ok and knowledge_ok and agents_ok), cfg=cfg
+        )
         print()
         sync_ok = check_spec_sync(workspace, cfg)
         changelog_ok = check_changelog_sync(workspace, cfg)
         walkthrough_ok = check_walkthrough_sync(workspace, cfg)
 
-        if plan_ok and knowledge_ok and hygiene_ok and sync_ok and changelog_ok and walkthrough_ok:
+        if plan_ok and knowledge_ok and agents_ok and hygiene_ok and sync_ok and changelog_ok and walkthrough_ok:
             print_success("All linter checks PASSED.")
             sys.exit(0)
         else:

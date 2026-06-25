@@ -18,7 +18,7 @@ Welcome, AI Developer. This file is the official human-written orchestrator and 
 
 ## 1. Decision Routing Protocols
 
-When the user issues a prompt, silently categorize the work into one of three routes:
+When the user issues a prompt, silently categorize the work into one of these routes:
 
 ### Route A: Immediate Execution
 * **Criteria**: Simple bug fixes, style adjustments, single-file edits, comments, minor unit tests, or exploratory requests.
@@ -67,6 +67,13 @@ When the user issues a prompt, silently categorize the work into one of three ro
   * When refactoring or deleting structures, prune the stale topic files and remove their now-dead index links — keep the index curated (one line per link), not exhaustive.
   * For human-readable release changes, append to [CHANGELOG.md](file:///c:/aethel/CHANGELOG.md).
   * If a commit is genuinely spec-irrelevant (typo, formatting), bypass the guard explicitly with `AETHEL_SKIP_SYNC=1 git commit ...` — do not disable the check.
+
+### Route D: Analysis (Delegated Evaluation)
+* **Criteria**: The user asks to *evaluate, review, critique, or audit* a proposal, plan, or design — not to build it. This is a **distinct stage from Route B**: Route B implements, Route D judges; they do not overlap and one does not include the other.
+* **Protocol**:
+  1. **Pick a registered agent** from the agent registry ([knowledge/agents.md](file:///c:/aethel/knowledge/agents.md)). It is the closed source of truth — *not in the registry ⇒ it does not exist*. If no listed agent fits the request, say so; never invent or spawn an unlisted agent. (Registry integrity is enforced by `check_agent_registry`.)
+  2. **Delegate per the spawn-prelude contract (§6)**: a spawned agent starts cold and inherits nothing from this conversation, so the delegation prompt must carry the prelude (AETHEL.md + the task's CC tags + the data under review + an explicit result contract).
+  3. **Relay the verdict** faithfully; do not silently override or soften it. One thesis per agent (§6).
 
 ---
 
@@ -148,6 +155,7 @@ Every complex plan must be structured as follows:
 * **venv**: Call `.\venv\Scripts\python.exe` directly for all Python executions.
 * **One thesis, one agent.** When delegating analysis to a sub-agent, spawn one agent per distinct question/thesis — never bundle multiple analyses into a single agent. Relay each result separately.
 * **Delegate only when it pays.** A sub-agent starts cold and re-derives context you already hold — the expensive path. Spawn one only when the analysis needs broad or independent context you do not already have (large fan-out search, heavy cross-file review). When the relevant context is already loaded and the question is simple, analyze inline. If asked to use an agent for something already in context and trivial, say inline is cheaper and confirm before spawning.
+* **Spawn-prelude contract.** Every delegation prompt MUST (a) name an agent that exists in the registry ([knowledge/agents.md](file:///c:/aethel/knowledge/agents.md)) — never an invented one — and (b) open with a prelude injecting AETHEL.md, the task's Contextual-Constraint tags, the data under review, and the expected result contract. The agent inherits none of this conversation, so an un-prefaced spawn yields ungrounded output. Registry membership is enforced mechanically (`check_agent_registry`); the prelude's content is your responsibility.
 * **Gitignored content is invisible to default search, not irrelevant.** This repo uses a `_nogit_*` naming convention (`_nogit_roadmap.md`, `_nogit_dev_fixtures/`) for files that are intentionally untracked but still meaningful working content — `.gitignore` hides them from `Glob`/`Grep` (ripgrep respects `.gitignore` regardless of whether a file is git-tracked; force-adding it does not change this). If a broad search returns a suspiciously filtered or truncated result, or you are hunting for something by topic ("roadmap", "philosophy", "notes") rather than an exact known path, explicitly check repo-root files and consider a `_nogit_*`-aware or ignore-bypassing follow-up before concluding something doesn't exist.
 
 ---

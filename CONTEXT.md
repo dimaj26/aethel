@@ -21,6 +21,7 @@ topic file; design decisions are append-only ADRs under `knowledge/decisions/`.
 - [Core consistency (CC-1)](knowledge/core-consistency.md) — the directional core ⊇ workspace contract.
 - [Versioning](knowledge/versioning.md) — the three version axes (package dev / package PyPI / integer core revision) and how `aethel doctor` reads them.
 - [Recipe discovery](knowledge/recipes.md) — runtime discovery of stack-specific config recipes.
+- [Agent registry](knowledge/agents.md) — closed list of spawnable skill-agents; Route D delegates only to a registered agent.
 
 ## Decisions (ADRs)
 - [Decision records (ADR ledger)](knowledge/decisions/README.md) — append-only index of ADRs; each record reachable from here (keeps this index curated).
