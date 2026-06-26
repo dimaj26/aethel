@@ -3,6 +3,14 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Docs
+- **Split the oversized `knowledge/linter-checks.md`** (~2,716 tok, over the `max_topic_tokens=2500`
+  budget its own `check_topic_size` flags) into a slim hub + two atomic sub-topics
+  (`linter-checks-artifacts.md`, `linter-checks-integrity.md`), reachable transitively via the hub
+  (ADR 0002 pattern). The `linter-checks` stem stays, so all inbound links and the
+  `[K-/C-linter-checks]` slugs remain valid. Also corrected the hub's stale hook-degradation note to
+  reflect the fail-closed generated hook (`AETHEL_REQUIRE=1`, ADR 0008).
+
 ### Changed
 - **P3 #8: de-duplicate session mechanics out of the always-loaded core** (**core block changed,
   `CORE-REV 10` → `11`**). The verbose Route B session prose (multi-slot, `--session`>`AETHEL_SESSION`>

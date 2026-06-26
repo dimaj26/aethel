@@ -1,0 +1,84 @@
+---
+name: linter-checks-integrity
+description: Repo-integrity linter checks — knowledge index, agent registry, workspace hygiene, commit-time drift guards, and what the linter does NOT check.
+---
+
+# Linter Checks — Integrity & Commit Guards
+
+The repo-level integrity checks and commit-time drift guards `aethel/linter.py` runs. Severities
+come from `aethel.config` / `aethel.toml`. Part of [linter checks](linter-checks.md).
+
+## Knowledge-index integrity (`check_knowledge_index`)
+Replaces the retired `memory.json` graph check. The index (default `CONTEXT.md`) must exist
+and not be a placeholder; every relative **inline** link in the index must resolve on disk
+(dead link = error by default). Every `*.md` under the knowledge dir must be **reachable by
+navigation from the index — transitively** (`index → topic → topic → ADR`), computed by a
+cycle-safe walk (`_reachable_md`) that follows inline links in every reachable file, resolving
+each relative to the *linking* file's directory. An unreachable file is unsurfaced (dead
+knowledge), flagged at `[knowledge] orphan_enforce` (warn by default). Transitive reachability
+keeps the index curated (AETHEL.md §7): ADRs are surfaced via the ledger
+[knowledge/decisions/README.md](decisions/README.md), not one link per ADR in the top index
+(see [ADR 0002](decisions/0002-navigable-reachability.md)). Anchors are stripped, `\`→`/`
+normalized, `http(s)`/`mailto` skipped; reference-style links/autolinks are NOT parsed, so use
+inline links only. Each index link to a knowledge file should also carry an **annotation**
+(`[text](target) — note`) — reachability surfaces a file, the note is what makes an agent open the
+*right* one; an unannotated knowledge link is flagged at `[knowledge] annotation_enforce` (warn by
+default; only index links whose target resolves under the knowledge dir are checked, so prose and
+external links are never flagged). Severities: `[knowledge] dead_link_enforce` / `orphan_enforce` /
+`annotation_enforce`.
+
+## Agent registry integrity (`check_agent_registry`)
+Backs **Route D** (AETHEL.md §1): analysis is delegated only to an agent listed in the closed
+registry (default `knowledge/agents.md`, `[agents] registry`). Skill-agents live under a gitignored
+`.agents/` tree (`[agents] dir`), so discovery walks that tree **directly** (`_discover_skill_files`,
+`os.walk` — not a git-tracked listing), keeping gitignored agents visible (the [discovery-discipline]
+lesson, roadmap [18]). Bidirectional:
+- a registry reference naming a `SKILL.md` that does not resolve on disk → dangling reference,
+  `[agents] dangling_enforce` (library default **error**). A skill-agent registers via an **inline
+  link** `[name](path/SKILL.md)` *or* a **backticked path** `` `path/SKILL.md` ``; both forms resolve
+  through the same on-disk check, so a backtick path to a missing file is dangling, not silent.
+- a `SKILL.md` discovered under `.agents/` but absent from the registry → orphan skill-agent,
+  `[agents] orphan_enforce` (library default **warn**; this repo promotes both to **error**). The
+  orphan error states the canonical registration form.
+
+Fails **open**: with neither a registry nor any agent there is nothing to validate (a fresh
+workspace stays green). Runs in `run_linter` and the parameterless `main` path, next to
+`check_knowledge_index`. The registry itself is a `knowledge/*.md` topic, so it is also subject to
+the knowledge-index reachability/annotation checks. See [ADR 0007](decisions/0007-agent-registry-route-d.md).
+
+## Workspace hygiene (`check_workspace_hygiene`)
+Core files present (`AETHEL.md`, `CONTEXT.md`, `.gitattributes`), knowledge dir present,
+required AETHEL/CONTEXT headers, no `LEGACY_*` or `AETHEL_ONBOARDING.md` left behind, and
+core-consistency (see [core consistency](core-consistency.md)). `check_core_consistency` strips
+the integer `AETHEL:CORE-REV` stamp before comparing structure, so it distinguishes a hand-edited
+block (divergence, `[consistency] enforce`) from a merely stale one (revision skew, or the obsolete
+semver stamp → "run `aethel update`", `[consistency] version_skew_enforce`, default warn/non-blocking).
+
+## Commit-time drift guards
+All three are inert outside a real commit (no repo / no HEAD / nothing staged) and share the
+`AETHEL_SKIP_SYNC=1` escape hatch; each checks only the *pairing*, never the content.
+- `check_spec_sync` — code staged without a spec file (`CONTEXT.md` / `AETHEL.md` /
+  `knowledge/*`) warns or blocks (Route C).
+- `check_changelog_sync` — a staged rule file (`AETHEL.md`) without `CHANGELOG.md` warns/blocks.
+- `check_walkthrough_sync` — when a Route B task is active (`task.md` present in the artifact base)
+  AND the commit stages code, the base's session report `walkthrough.md` must exist and carry the
+  required sections (`Summary` / `Changes made` / `What was tested` / `Validation results`, from
+  `[report] sections`); missing/malformed → `[report] require_walkthrough` (default `error`).
+  `walkthrough.md` is a per-session local artifact (gitignored). The guard stays **PURE** — it
+  never writes the session manifest; marking a session done is `aethel done`'s job (see
+  [session lifecycle](session-lifecycle.md)). Report language is governed by `[language]
+  report_lang` and routed by severity `[language] report_lang_enforce` (**default `error`** in
+  core — a mandated language must BLOCK, not merely warn; gated behind `report_lang != "any"`, so
+  workspaces that set no language are unaffected). An `error`-level language mismatch goes into
+  `check_report_file`'s `errors`, so it blocks both `aethel done` and the commit-time
+  `check_walkthrough_sync` guard, which escalate only on errors. Structure validation also lives in
+  `check_report_file` (reachable via `--stage report`).
+
+## What the linter does NOT check
+The linter is **mechanical/structural** — links, headings, slug resolution, staged-file pairing,
+language. It does **not** check the **semantic agreement of values or claims across files** (e.g. one
+topic saying "version 5" while another says "version 8"). "All checks PASSED" means structurally
+sound, **not** semantically consistent. General semantic consistency needs an LLM, which §7 refuses
+(stdlib-only, provider-agnostic); the semantic checker is the reading agent + review. A canonical
+scalar duplicated across files should be **single-sourced by identity** (the `REQUIRED_PLAN_H2S`
+pattern), not echo-validated. See [ADR 0009](decisions/0009-semantic-consistency-out-of-scope.md).
