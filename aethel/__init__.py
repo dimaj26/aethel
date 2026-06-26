@@ -1,7 +1,7 @@
 # Aethel Context & Memory CLI Package
 
 # The pip package version (kept in sync with pyproject [project].version by a test).
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 
 # The managed `aethel-core` block revision: a MONOTONIC INTEGER, not a semver string.
 # The block is a schema replaced wholesale by `aethel update`, so it needs ordering

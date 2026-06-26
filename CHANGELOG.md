@@ -3,6 +3,8 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+
+## [1.7.0] - 2026-06-26
 ### Docs
 - **Split the oversized `knowledge/linter-checks.md`** (~2,716 tok, over the `max_topic_tokens=2500`
   budget its own `check_topic_size` flags) into a slim hub + two atomic sub-topics
