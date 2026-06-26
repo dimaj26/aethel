@@ -28,14 +28,12 @@ When the user issues a prompt, silently categorize the work into one of these ro
 * **Criteria**: New features, architectural changes, multi-file edits, database modifications, or complex refactorings.
 * **Protocol**:
   1. **Start a session**: run `aethel start <slug>` to open a fresh per-session working
-     directory `.aethel/sessions/<id>/`. Sessions are **multi-slot**: `start` opens a NEW session
-     and leaves any prior one LIVE (it never archives it), so multiple Route B tasks can run in
-     parallel. Author `implementation_plan.md`, `task.md`, and `walkthrough.md` INSIDE that
-     directory — it is the `<artifacts_directory>` the linter stages resolve to. `.aethel/` is
-     gitignored (local scratch). The selected session is resolved by `--session <id>` > the
-     `AETHEL_SESSION` env var > the `CURRENT` pointer (`aethel sessions` lists live ones); to RESUME
-     a different task keep working in its session or `aethel switch <id>` — do NOT re-run
-     `aethel start` for the same task (that opens a second, parallel session).
+     directory `.aethel/sessions/<id>/`, and author `implementation_plan.md`, `task.md`, and
+     `walkthrough.md` INSIDE it — it is the `<artifacts_directory>` the linter stages resolve to
+     (`.aethel/` is gitignored local scratch). `start` opens a NEW session and leaves any prior one
+     LIVE; to RESUME a task keep working in its session or run `aethel switch <id>` — do NOT re-run
+     `aethel start` for it. (Parallel sessions, selection precedence, and archival are detailed in
+     the Session-lifecycle knowledge topic.)
   2. Perform codebase research using search tools. Do NOT modify code yet.
   3. Create or update `implementation_plan.md` using the **RNA-Blueprint** format (see section 2).
   4. Specify any open questions or design decisions.
@@ -50,13 +48,10 @@ When the user issues a prompt, silently categorize the work into one of these ro
      `.\venv\Scripts\python.exe prompt_linter.py --dir <artifacts_directory> --stage report`
      A commit-time guard (`check_walkthrough_sync`) requires `walkthrough.md` whenever a Route B task stages code (escape hatch: `AETHEL_SKIP_SYNC=1`). `walkthrough.md` is a per-session local artifact (gitignored), not committed.
      * **Structure** (required sections): `## Summary` (what & why, 1 paragraph), `## Changes made` (by area, with file refs), `## What was tested` (commands/scenarios run), `## Validation results` (outcomes, key numbers). `## Notes / follow-ups` is optional.
-  10. **Close the session**: run `aethel done`. It re-validates the selected session's report
-      (`check_report_file`) and, on success, marks the manifest `status=validated` AND archives the
-      session to `.aethel/archive/<id>/` (completion archives immediately); on failure it refuses
-      and leaves the session `active`. To drop a task you are abandoning, run `aethel abandon`
-      (archives the session to `.aethel/archive/_incomplete/<id>/` — a recoverable move, no prompt).
-      The walkthrough guard stays PURE (enforce only) — archiving a session is
-      `aethel done`/`abandon`'s job, never a commit side-effect.
+  10. **Close the session**: run `aethel done` — it re-validates the report (`check_report_file`)
+      and, on success, archives the session (on failure it refuses, leaving the session active). To
+      drop a task you are abandoning, run `aethel abandon`. (Archival paths and the pure-guard
+      contract are detailed in the Session-lifecycle knowledge topic.)
 
 ### Route C: Docs Update (Markdown Knowledge Index) — MANDATORY post-step
 * **Criteria**: Any changes to database schemas, API surfaces, module structures, business logic, or code patterns.

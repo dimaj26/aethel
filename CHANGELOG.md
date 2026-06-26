@@ -3,6 +3,17 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Changed
+- **P3 #8: de-duplicate session mechanics out of the always-loaded core** (**core block changed,
+  `CORE-REV 10` → `11`**). The verbose Route B session prose (multi-slot, `--session`>`AETHEL_SESSION`>
+  `CURRENT` precedence, archive paths, pure-guard contract) was duplicated between the managed core
+  block and `knowledge/session-lifecycle.md` (and had begun to drift). It now lives ONLY in the
+  topic — already indexed in `CONTEXT.md` and dead-link-guarded — as the single source of truth
+  (Taboo 1 / §7). The kernel keeps the Route B happy-path, the session verbs, and two cautions a
+  deployed agent can't re-derive from `--help` ("`start` opens a NEW session" + resume-vs-new via
+  `switch`). No pointer added to AETHEL.md (links live in `CONTEXT.md`). The always-loaded core
+  shrank ~15.3k→~14.9k chars; the real win is one home per fact. ADR 0011; `tests/test_core_kernel.py`.
+
 ### Added
 - **P2 context-bloat control + tag ergonomics** (field report Phase 3; **core block changed,
   `CORE-REV 9` → `10`** for the `{#slug}` convention). (#7) `aethel size` prints a per-topic + total
