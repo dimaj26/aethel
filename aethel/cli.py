@@ -982,6 +982,67 @@ def cmd_doctor(args: argparse.Namespace) -> None:
     sys.exit(1 if hard_problem else 0)
 
 
+def _file_tokens(path: str) -> int:
+    from aethel.linter import _estimate_tokens
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return _estimate_tokens(f.read())
+    except OSError:
+        return 0
+
+
+def cmd_size(args: argparse.Namespace) -> None:
+    """Print a token report (char/4 estimate) for the knowledge index + each topic, and the total.
+
+    Makes the spec's context cost visible without a hand-rolled audit (field report #7). Read-only."""
+    dest_dir = os.path.abspath(args.path)
+    cfg = load_config(dest_dir)
+    rows: list[tuple[str, int, bool]] = []  # (rel, tokens, is_topic)
+    index_path = os.path.join(dest_dir, cfg.knowledge_index)
+    if os.path.exists(index_path):
+        rows.append((cfg.knowledge_index, _file_tokens(index_path), False))
+    kdir = os.path.join(dest_dir, cfg.knowledge_dir)
+    for root, _dirs, files in os.walk(kdir):
+        for fn in sorted(files):
+            if fn.endswith(".md"):
+                p = os.path.join(root, fn)
+                rel = os.path.relpath(p, dest_dir).replace("\\", "/")
+                rows.append((rel, _file_tokens(p), True))
+    total = sum(t for _rel, t, _ in rows)
+    print(f"Aethel size report - {dest_dir}  (char/4 token estimate)")
+    for rel, t, is_topic in rows:
+        over = is_topic and cfg.max_topic_tokens > 0 and t > cfg.max_topic_tokens
+        flag = f"  <- over max_topic_tokens={cfg.max_topic_tokens}" if over else ""
+        print(f"  {t:>7} tok  {rel}{flag}")
+    print(f"  {'-' * 7}")
+    print(f"  {total:>7} tok  total ({len(rows)} files)")
+
+
+def cmd_tags(args: argparse.Namespace) -> None:
+    """`aethel tags list` — every resolvable [G-]/[C-]/[K-] slug WITH its source location.
+
+    Surfaces what the linter's slug resolvers already compute, so the tag set is discoverable
+    without reading linter internals (field report #10)."""
+    if getattr(args, "tags_command", None) != "list":
+        print("Usage: aethel tags list")
+        sys.exit(2)
+    dest_dir = os.path.abspath(args.path)
+    from aethel.linter import _collect_tag_entries
+    entries, _invalid = _collect_tag_entries(dest_dir)
+    grouped: dict[tuple[str, str], set[str]] = {}
+    for e in entries:
+        grouped.setdefault((e.namespace, e.slug), set()).add(e.source)
+    print(f"Resolvable tags - {dest_dir}")
+    for ns in ("G", "C", "K"):
+        keys = sorted(k for k in grouped if k[0] == ns)
+        if not keys:
+            continue
+        print(f"\n[{ns}-] tags:")
+        for n, slug in keys:
+            srcs = "; ".join(sorted(grouped[(n, slug)]))
+            print(f"  [{ns}-{slug}]  <- {srcs}")
+
+
 def main() -> None:
     ensure_resilient_stdio()
     parser = argparse.ArgumentParser(description="Aethel: AI Context & Memory CLI Management Utility")
@@ -1050,6 +1111,15 @@ def main() -> None:
     p_doctor = subparsers.add_parser("doctor", help="Diagnose version skew, core-block consistency, and importability")
     p_doctor.add_argument("path", nargs="?", default=".", help="Workspace path to diagnose (default: current)")
     p_doctor.set_defaults(func=cmd_doctor)
+
+    p_size = subparsers.add_parser("size", help="Token report (char/4) for the knowledge index + topics")
+    p_size.add_argument("path", nargs="?", default=".", help="Workspace path (default: current)")
+    p_size.set_defaults(func=cmd_size)
+
+    p_tags = subparsers.add_parser("tags", help="Inspect resolvable [G-]/[C-]/[K-] tag slugs")
+    p_tags.add_argument("tags_command", choices=["list"], help="Subcommand (currently only 'list')")
+    p_tags.add_argument("path", nargs="?", default=".", help="Workspace path (default: current)")
+    p_tags.set_defaults(func=cmd_tags)
 
     args = parser.parse_args()
     if not args.command:

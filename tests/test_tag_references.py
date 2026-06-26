@@ -208,3 +208,69 @@ def test_config_loads_tag_reference_enforce_from_toml(tmp_path):
     (tmp_path / "aethel.toml").write_text("[plan]\ntag_reference_enforce = \"error\"\n", encoding="utf-8")
     cfg = load_config(str(tmp_path))
     assert cfg.tag_reference_enforce == "error"
+
+
+# --- #10: {#slug} explicit anchors (suppress derived), collisions, suggestions ----------------
+
+
+def test_explicit_anchor_resolves_and_suppresses_derived(tmp_path):
+    """`## Long heading {#facades}` makes `[K-facades]` resolve and SUPPRESSES the
+    long derived slug `[K-database-facades-and-patterns]` (one identity per heading)."""
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_knowledge(tmp_path, "architecture", "# Architecture\n\n## Database Facades and Patterns {#facades}\n")
+    # explicit short slug resolves
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[K-facades]` short stable anchor.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert errs == []
+    # derived long slug is suppressed
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[K-database-facades-and-patterns]` derived gone.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert any("Unresolved" in e and "database-facades-and-patterns" in e for e in errs)
+
+
+def test_unresolved_tag_suggests_closest(tmp_path):
+    """A near-miss tag yields a difflib 'did you mean' suggestion, not a bare failure."""
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_knowledge(tmp_path, "architecture", "# Architecture\n\n## Database Facades\n")
+    _write_plan(tmp_path, "## Contextual Constraints (CC)\n- `[K-databse-facades]` typo.")
+    errs, _ = check_plan_file(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert any("did you mean" in e.lower() and "database-facades" in e for e in errs)
+
+
+def test_invalid_anchor_warns(tmp_path, capsys):
+    """A `{#...}` that is not slug-shaped is not a writable anchor → warned; the heading
+    falls back to its derived slug."""
+    from aethel.linter import check_tag_anchors
+    _write_aethel_md(tmp_path, taboo_count=8)
+    _write_knowledge(tmp_path, "architecture", "# Architecture\n\n## Facades {#Bad Anchor}\n")
+    ok = check_tag_anchors(str(tmp_path), AethelConfig())  # warn by default
+    out = capsys.readouterr().out
+    assert ok is True  # warn doesn't block
+    assert "Bad Anchor" in out or "anchor" in out.lower()
+
+
+def test_explicit_anchor_collision_warns(tmp_path, capsys):
+    """An explicit `{#slug}` clashing with another heading's slug is an ambiguous identity → warned."""
+    from aethel.linter import check_tag_anchors
+    _write_aethel_md(tmp_path, taboo_count=8)
+    kdir = tmp_path / "knowledge"
+    kdir.mkdir(exist_ok=True)
+    (kdir / "a.md").write_text("# A\n\n## Setup\n", encoding="utf-8")              # derived -> setup
+    (kdir / "b.md").write_text("# B\n\n## Bootstrapping {#setup}\n", encoding="utf-8")  # explicit -> setup
+    ok = check_tag_anchors(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    out = capsys.readouterr().out
+    assert ok is False
+    assert "setup" in out.lower() and ("collision" in out.lower() or "ambiguous" in out.lower())
+
+
+def test_derived_heading_collision_is_not_flagged(tmp_path, capsys):
+    """Two generic *derived* headings sharing a slug (e.g. ADR `## Context`) is normal Markdown,
+    not an ambiguity — it must NOT block (else every ADR section would collide)."""
+    from aethel.linter import check_tag_anchors
+    _write_aethel_md(tmp_path, taboo_count=8)
+    kdir = tmp_path / "knowledge"
+    kdir.mkdir(exist_ok=True)
+    (kdir / "a.md").write_text("# A\n\n## Context\n", encoding="utf-8")
+    (kdir / "b.md").write_text("# B\n\n## Context\n", encoding="utf-8")
+    ok = check_tag_anchors(str(tmp_path), AethelConfig(tag_reference_enforce="error"))
+    assert ok is True

@@ -39,7 +39,20 @@ see [session lifecycle](session-lifecycle.md)).
   inside it) — no positional legacy form, so resolved/unresolved only, each source failing open if
   absent. An unresolved tag (bad slug, or a legacy `[G-]` number absent from §5) is routed by
   `[plan] tag_reference_enforce` (library default `warn`; this repo promotes it to `error`, since
-  it defines the convention).
+  it defines the convention). An unresolved slug now carries a difflib "did you mean `<slug>`?"
+  suggestion (non-blocking — the tag still fails). A heading / taboo title may pin a short stable
+  slug with an explicit **`{#slug}` anchor** (`## Long heading {#facades}` → `[K-facades]`); the
+  anchor SUPPRESSES the heading-derived slug (one identity per heading), decoupling human heading
+  text from machine tag identity (the `_source_slug` rule shared by every resolver).
+- `check_tag_anchors` — workspace-level companion to the tag resolution above: an explicit `{#slug}`
+  that is not slug-shaped (unwritable) is warned and falls back to the derived slug; two distinct
+  headings collapsing to one slug is an **ambiguous-identity** warning (rather than a silent `set`
+  merge). Both routed by `[plan] tag_reference_enforce`. Inspect the full slug set with `aethel tags list`.
+- `check_topic_size` — warns when a `knowledge/**/*.md` topic exceeds `[knowledge] max_topic_tokens`
+  (char/4 estimate; default `2500`, `0` disables). ON by default as a WARNING (`topic_size_enforce`):
+  it gives §7's "~50–200 lines per topic" an enforceable number so context bloat is visible, without
+  ever blocking a commit (char/4 is too coarse to block). Deliberately separate from
+  `check_knowledge_index` (reachability). See `aethel size` for the full per-file token report.
 - `check_checklist_file` — `task.md` structure (well-formed items, last item runs the linter) is
   validated on every lint; **completeness** (no open `[ ]`/`[/]`) is enforced only at the explicit
   `--stage checklist` finalization step (§2.8), via `require_complete`. The default/pre-commit lint
@@ -112,3 +125,12 @@ All three are inert outside a real commit (no repo / no HEAD / nothing staged) a
   `check_report_file`'s `errors`, so it blocks both `aethel done` and the commit-time
   `check_walkthrough_sync` guard, which escalate only on errors. Structure validation also lives in
   `check_report_file` (reachable via `--stage report`).
+
+## What the linter does NOT check
+The linter is **mechanical/structural** — links, headings, slug resolution, staged-file pairing,
+language. It does **not** check the **semantic agreement of values or claims across files** (e.g. one
+topic saying "version 5" while another says "version 8"). "All checks PASSED" means structurally
+sound, **not** semantically consistent. General semantic consistency needs an LLM, which §7 refuses
+(stdlib-only, provider-agnostic); the semantic checker is the reading agent + review. A canonical
+scalar duplicated across files should be **single-sourced by identity** (the `REQUIRED_PLAN_H2S`
+pattern), not echo-validated. See [ADR 0009](decisions/0009-semantic-consistency-out-of-scope.md).

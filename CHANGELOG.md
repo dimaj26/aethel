@@ -3,6 +3,22 @@
 All notable changes to the Aethel boilerplate and tooling will be documented in this file.
 
 ## [Unreleased]
+### Added
+- **P2 context-bloat control + tag ergonomics** (field report Phase 3; **core block changed,
+  `CORE-REV 9` → `10`** for the `{#slug}` convention). (#7) `aethel size` prints a per-topic + total
+  token report (char/4 estimate), and a new `check_topic_size` warns when a `knowledge/` topic exceeds
+  `[knowledge] max_topic_tokens` — **ON by default at 2500 tokens as a WARNING** (`topic_size_enforce`),
+  giving §7's "~200-line" topic ceiling an enforceable number so bloat is visible without ever blocking
+  (`0` disables). (#10) tags gained an explicit **`{#slug}` anchor** that pins a short stable slug and
+  SUPPRESSES the heading-derived one (decoupling long human headings from machine tag identity), a new
+  `aethel tags list` showing every resolvable `[G-]`/`[C-]`/`[K-]` slug with its source, a difflib
+  "did you mean" suggestion on unresolved tags, and `check_tag_anchors` flagging unwritable anchors and
+  ambiguous (colliding) identities; loose prefix/substring matching was deliberately NOT added (it would
+  silently resolve typos). (#9) **no feature** — ADR 0009 records that semantic consistency is out of
+  linter scope by design (reject fact-anchors; redirect duplicated scalars to single-sourcing), with a
+  "what the linter does NOT check" note. ADR 0009/0010; `tests/test_topic_size.py`,
+  `tests/test_size_and_tags.py`, `tests/test_tag_references.py`.
+
 ### Changed
 - **P1 workflow correctness: the documented Route B flow is now executable & self-describing**
   (field report Phase 2; **core block changed, `CORE-REV 8` → `9`**). Three defects where Aethel

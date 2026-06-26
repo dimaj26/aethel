@@ -106,6 +106,11 @@ class AethelConfig:
     dead_link_enforce: str = "error"  # error | warn | off (index link resolves on disk)
     orphan_enforce: str = "warn"  # error | warn | off (topic file unreachable from index)
     annotation_enforce: str = "warn"  # error | warn | off (index link to a knowledge file is annotated)
+    # Context-bloat control: a knowledge topic over `max_topic_tokens` (char/4 proxy) is flagged.
+    # ON by default as a WARNING (visibility into bloat without blocking a commit); 0 disables it.
+    # The threshold maps to §7's "~200-line" topic ceiling. char/4 is too coarse to justify "error".
+    max_topic_tokens: int = 2500  # 0 = off
+    topic_size_enforce: str = "warn"  # error | warn | off
     require_walkthrough: str = "error"  # error | warn | off (commit-time Route-B report guard)
     report_sections: list[str] = field(default_factory=lambda: list(DEFAULT_REPORT_SECTIONS))
     aethel_dir: str = ".aethel"  # gitignored root of the per-session working-dir tree
@@ -216,6 +221,10 @@ def _apply_overrides(cfg: AethelConfig, data: dict) -> None:
         cfg.dead_link_enforce = _coerce_enforce(knowledge.get("dead_link_enforce"), cfg.dead_link_enforce)
         cfg.orphan_enforce = _coerce_enforce(knowledge.get("orphan_enforce"), cfg.orphan_enforce)
         cfg.annotation_enforce = _coerce_enforce(knowledge.get("annotation_enforce"), cfg.annotation_enforce)
+        mtt = knowledge.get("max_topic_tokens")
+        if isinstance(mtt, int) and not isinstance(mtt, bool) and mtt >= 0:
+            cfg.max_topic_tokens = mtt
+        cfg.topic_size_enforce = _coerce_enforce(knowledge.get("topic_size_enforce"), cfg.topic_size_enforce)
 
     report = data.get("report", {})
     if isinstance(report, dict):

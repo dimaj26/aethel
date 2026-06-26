@@ -1,4 +1,5 @@
 import argparse
+import difflib
 import fnmatch
 import os
 import re
@@ -108,9 +109,49 @@ def _slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
+# Explicit anchor `## Long human heading {#short-slug}`: pins a short stable slug to a heading or
+# §5 taboo title, decoupling the human-readable text from the machine tag identity (AETHEL.md §2).
+_ANCHOR_RE = re.compile(r"\{#([^}]+)\}")
+
+
+def _extract_anchor(text: str) -> tuple[str | None, bool]:
+    """Return (anchor, is_valid). ``anchor`` is the raw `{#...}` capture or None; ``is_valid`` is
+    True when it is already slug-shaped (writable as a `[X-<anchor>]` tag). An invalid anchor
+    (spaces/uppercase) is reported by the caller and the source falls back to its derived slug."""
+    m = _ANCHOR_RE.search(text)
+    if not m:
+        return None, True
+    raw = m.group(1).strip()
+    return raw, (raw != "" and _slugify(raw) == raw)
+
+
+def _source_slug(text: str) -> str:
+    """The single slug a heading / taboo title contributes. A valid explicit `{#anchor}`
+    SUPPRESSES the prose-derived slug (one identity per heading); otherwise the slug is derived
+    from the text with any anchor stripped."""
+    anchor, valid = _extract_anchor(text)
+    if anchor is not None and valid:
+        return anchor
+    return _slugify(_ANCHOR_RE.sub("", text))
+
+
+def _suggest_slug(slug: str, valid: set[str]) -> str:
+    """A non-blocking ' (did you mean [X-foo]?)' hint via difflib, or '' when nothing is close.
+    Fail-fast is preserved — the tag still does not resolve; this only aids the fix."""
+    close = difflib.get_close_matches(slug, sorted(valid), n=1, cutoff=0.6)
+    return f" (did you mean `{close[0]}`?)" if close else ""
+
+
+def _estimate_tokens(text: str) -> int:
+    """A cheap token estimate (char/4). Deliberately approximate — used only for a WARNING about
+    oversized knowledge topics, never to block, so the imprecision is acceptable."""
+    return len(text) // 4
+
+
 def _valid_g_slugs(aethel_text: str) -> set[str]:
-    slugs = {_slugify(t) for t in _TABOO_TITLE_RE.findall(aethel_text)}
+    slugs = {_source_slug(t) for t in _TABOO_TITLE_RE.findall(aethel_text)}  # honors `{#anchor}`
     slugs |= {_slugify(c) for c in _RULE_CODE_RE.findall(aethel_text)}
+    slugs.discard("")
     return slugs
 
 
@@ -140,7 +181,7 @@ def _unresolved_taboo_tags(content: str, workspace_path: str) -> tuple[list[str]
     valid_numbers = set(_TABOO_NUMBER_RE.findall(aethel_text))
     valid_slugs = _valid_g_slugs(aethel_text)
     unresolved = [f"[G-Taboo{n}]" for n in legacy if n not in valid_numbers]
-    unresolved += [f"[G-{s}]" for s in slugs if s not in valid_slugs]
+    unresolved += [f"[G-{s}]{_suggest_slug(s, valid_slugs)}" for s in slugs if s not in valid_slugs]
     deprecated = [f"[G-Taboo{n}]" for n in legacy]
     return unresolved, deprecated
 
@@ -166,7 +207,7 @@ def _valid_c_slugs(context_text: str) -> set[str]:
         stem = os.path.splitext(os.path.basename(target.split("#", 1)[0]))[0]
         if stem:
             slugs.add(_slugify(stem))
-    slugs |= {_slugify(h) for h in _CK_HEADING_RE.findall(context_text)}
+    slugs |= {_source_slug(h) for h in _CK_HEADING_RE.findall(context_text)}  # honors `{#anchor}`
     slugs.discard("")
     return slugs
 
@@ -182,7 +223,7 @@ def _valid_k_slugs(workspace_path: str) -> set[str]:
             slugs.add(_slugify(os.path.splitext(fn)[0]))
             try:
                 with open(os.path.join(root, fn), "r", encoding="utf-8") as f:
-                    slugs |= {_slugify(h) for h in _CK_HEADING_RE.findall(f.read())}
+                    slugs |= {_source_slug(h) for h in _CK_HEADING_RE.findall(f.read())}  # honors `{#anchor}`
             except OSError:
                 continue
     slugs.discard("")
@@ -201,13 +242,171 @@ def _unresolved_ck_tags(content: str, workspace_path: str) -> list[str]:
         try:
             with open(os.path.join(workspace_path, "CONTEXT.md"), "r", encoding="utf-8") as f:
                 valid_c = _valid_c_slugs(f.read())
-            unresolved += [f"[C-{s}]" for s in c_tags if s not in valid_c]
+            unresolved += [f"[C-{s}]{_suggest_slug(s, valid_c)}" for s in c_tags if s not in valid_c]
         except OSError:
             pass
     if k_tags and os.path.isdir(os.path.join(workspace_path, "knowledge")):
         valid_k = _valid_k_slugs(workspace_path)
-        unresolved += [f"[K-{s}]" for s in k_tags if s not in valid_k]
+        unresolved += [f"[K-{s}]{_suggest_slug(s, valid_k)}" for s in k_tags if s not in valid_k]
     return unresolved
+
+
+class _TagEntry(NamedTuple):
+    namespace: str   # "G" | "C" | "K"
+    slug: str
+    source: str      # human-readable location
+    is_heading: bool  # heading/taboo-title source (anchor-bearing)
+    is_anchor: bool   # carries an explicit, valid {#slug} (a deliberate identity claim)
+
+
+def _collect_tag_entries(workspace_path: str) -> tuple[list[_TagEntry], list[tuple[str, str]]]:
+    """Walk AETHEL.md / CONTEXT.md / knowledge for every resolvable tag slug WITH its source.
+
+    Returns ``(entries, invalid_anchors)``. ``invalid_anchors`` are ``(raw, source)`` for `{#...}`
+    that are not slug-shaped (the heading falls back to its derived slug). Fail-open per source."""
+    entries: list[_TagEntry] = []
+    invalid: list[tuple[str, str]] = []
+
+    def add_heading(ns: str, heading: str, where: str) -> None:
+        anchor, ok = _extract_anchor(heading)
+        if anchor is not None and not ok:
+            invalid.append((anchor, where))
+        slug = _source_slug(heading)
+        if slug:
+            entries.append(_TagEntry(ns, slug, where, True, is_anchor=(anchor is not None and ok)))
+
+    try:
+        with open(os.path.join(workspace_path, "AETHEL.md"), "r", encoding="utf-8") as f:
+            atext = f.read()
+        for t in _TABOO_TITLE_RE.findall(atext):
+            add_heading("G", t, f"AETHEL.md taboo: {t.strip()}")
+        for c in _RULE_CODE_RE.findall(atext):
+            s = _slugify(c)
+            if s:
+                entries.append(_TagEntry("G", s, f"AETHEL.md rule code: ({c})", False, False))
+    except OSError:
+        pass
+
+    try:
+        with open(os.path.join(workspace_path, "CONTEXT.md"), "r", encoding="utf-8") as f:
+            ctext = f.read()
+        for text, target in _CK_LINK_RE.findall(ctext):
+            s = _slugify(text)
+            if s:
+                entries.append(_TagEntry("C", s, f"CONTEXT.md link: {text.strip()}", False, False))
+            stem = os.path.splitext(os.path.basename(target.split("#", 1)[0]))[0]
+            if _slugify(stem):
+                entries.append(_TagEntry("C", _slugify(stem), f"CONTEXT.md link target: {stem}", False, False))
+        for h in _CK_HEADING_RE.findall(ctext):
+            add_heading("C", h, f"CONTEXT.md heading: {h.strip()}")
+    except OSError:
+        pass
+
+    kdir = os.path.join(workspace_path, "knowledge")
+    for root, _dirs, files in os.walk(kdir):
+        for fn in sorted(files):
+            if not fn.endswith(".md"):
+                continue
+            rel = os.path.relpath(os.path.join(root, fn), workspace_path).replace("\\", "/")
+            stem = _slugify(os.path.splitext(fn)[0])
+            if stem:
+                entries.append(_TagEntry("K", stem, f"{rel} (file)", False, False))
+            try:
+                with open(os.path.join(root, fn), "r", encoding="utf-8") as f:
+                    for h in _CK_HEADING_RE.findall(f.read()):
+                        add_heading("K", h, f"{rel} heading: {h.strip()}")
+            except OSError:
+                continue
+
+    return entries, invalid
+
+
+def check_tag_anchors(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
+    """Validate `{#slug}` explicit anchors and detect ambiguous (colliding) tag identities.
+
+    Two distinct HEADINGS reducing to one slug make a `[X-slug]` tag ambiguous; an explicit anchor
+    that is not slug-shaped is unwritable. Both are surfaced under ``tag_reference_enforce`` (warn by
+    default) rather than silently merged in a set. Returns False only on an error-severity finding."""
+    cfg = _resolve_cfg(workspace_path, cfg)
+    print("--- Running Tag Anchor / Collision Validation ---")
+    if cfg.tag_reference_enforce == "off":
+        print_success("Tag anchor validation disabled.")
+        return True
+    entries, invalid = _collect_tag_entries(workspace_path)
+    has_errors = False
+
+    for raw, where in invalid:
+        if _emit(
+            cfg.tag_reference_enforce,
+            f"Invalid tag anchor `{{#{raw}}}` ({where}): not slug-shaped (lowercase letters, digits, "
+            f"hyphens), so it is not a writable `[X-<slug>]` tag; the heading's derived slug is used instead.",
+        ):
+            has_errors = True
+
+    # Collision: an EXPLICIT `{#slug}` anchor (a deliberate identity claim) whose slug also occurs
+    # from another distinct heading source. Two *derived* generic headings sharing a slug (e.g. every
+    # ADR's `## Context`) is normal Markdown, NOT an ambiguity worth blocking — only an explicit
+    # anchor clashing is flagged. Link-text/stem aliases of one topic are excluded (not headings).
+    seen: dict[tuple[str, str], list[_TagEntry]] = {}
+    for e in entries:
+        if e.is_heading:
+            seen.setdefault((e.namespace, e.slug), []).append(e)
+    for (ns, slug), group in sorted(seen.items()):
+        sources = sorted({e.source for e in group})
+        if len(sources) > 1 and any(e.is_anchor for e in group):
+            joined = "; ".join(sources)
+            if _emit(
+                cfg.tag_reference_enforce,
+                f"Ambiguous tag identity: explicit anchor `[{ns}-{slug}]` collides with another "
+                f"heading ({joined}). Choose a unique `{{#slug}}`.",
+            ):
+                has_errors = True
+
+    if has_errors:
+        return False
+    print_success("Tag anchors and identities are unambiguous.")
+    return True
+
+
+def check_topic_size(workspace_path: str, cfg: AethelConfig | None = None) -> bool:
+    """Warn (by default) when a knowledge topic exceeds ``max_topic_tokens`` (char/4 estimate).
+
+    Aethel's index→topics model only saves tokens if topics stay small (§7 "~50–200 lines, split if
+    it no longer reads in one sitting"); this gives that intent a measurable number. ON by default as
+    a WARNING — char/4 is too coarse to block; ``max_topic_tokens = 0`` disables it. Separate from
+    ``check_knowledge_index`` (reachability), which it deliberately does not touch."""
+    cfg = _resolve_cfg(workspace_path, cfg)
+    print("--- Running Topic Size Validation ---")
+    if cfg.max_topic_tokens <= 0 or cfg.topic_size_enforce == "off":
+        print_success("Topic size check disabled.")
+        return True
+    kdir = os.path.join(workspace_path, cfg.knowledge_dir)
+    has_errors = False
+    flagged = 0
+    for root, _dirs, files in os.walk(kdir):
+        for fn in sorted(files):
+            if not fn.endswith(".md"):
+                continue
+            path = os.path.join(root, fn)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    tokens = _estimate_tokens(f.read())
+            except OSError:
+                continue
+            if tokens > cfg.max_topic_tokens:
+                flagged += 1
+                rel = os.path.relpath(path, workspace_path).replace("\\", "/")
+                if _emit(
+                    cfg.topic_size_enforce,
+                    f"Oversized topic: {rel} ~{tokens} tokens (char/4 estimate) exceeds "
+                    f"max_topic_tokens={cfg.max_topic_tokens}; split it into smaller topics (AETHEL.md §7).",
+                ):
+                    has_errors = True
+    if has_errors:
+        return False
+    if flagged == 0:
+        print_success("All knowledge topics are within the size budget.")
+    return True
 
 
 # The plan sections the linter REQUIRES, single-sourced so the documented RNA template
@@ -1189,13 +1388,19 @@ def run_linter(workspace_path: str = ".") -> bool:
     print()
     knowledge_ok = check_knowledge_index(workspace_path, cfg)
     print()
+    size_ok = check_topic_size(workspace_path, cfg)
+    print()
+    tags_ok = check_tag_anchors(workspace_path, cfg)
+    print()
     agents_ok = check_agent_registry(workspace_path, cfg)
     print()
     hygiene_ok = check_workspace_hygiene(
-        workspace_path, other_checks_passed=(plan_ok and knowledge_ok and agents_ok), cfg=cfg
+        workspace_path,
+        other_checks_passed=(plan_ok and knowledge_ok and size_ok and tags_ok and agents_ok),
+        cfg=cfg,
     )
     print()
-    return plan_ok and knowledge_ok and agents_ok and hygiene_ok
+    return plan_ok and knowledge_ok and size_ok and tags_ok and agents_ok and hygiene_ok
 
 
 def ensure_resilient_stdio() -> None:
@@ -1248,17 +1453,24 @@ def main() -> None:
         print()
         knowledge_ok = check_knowledge_index(workspace, cfg)
         print()
+        size_ok = check_topic_size(workspace, cfg)
+        print()
+        tags_ok = check_tag_anchors(workspace, cfg)
+        print()
         agents_ok = check_agent_registry(workspace, cfg)
         print()
         hygiene_ok = check_workspace_hygiene(
-            workspace, other_checks_passed=(plan_ok and knowledge_ok and agents_ok), cfg=cfg
+            workspace,
+            other_checks_passed=(plan_ok and knowledge_ok and size_ok and tags_ok and agents_ok),
+            cfg=cfg,
         )
         print()
         sync_ok = check_spec_sync(workspace, cfg)
         changelog_ok = check_changelog_sync(workspace, cfg)
         walkthrough_ok = check_walkthrough_sync(workspace, cfg)
 
-        if plan_ok and knowledge_ok and agents_ok and hygiene_ok and sync_ok and changelog_ok and walkthrough_ok:
+        if (plan_ok and knowledge_ok and size_ok and tags_ok and agents_ok and hygiene_ok
+                and sync_ok and changelog_ok and walkthrough_ok):
             print_success("All linter checks PASSED.")
             sys.exit(0)
         else:

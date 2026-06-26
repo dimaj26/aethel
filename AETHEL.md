@@ -101,6 +101,7 @@ Every complex plan must be structured as follows:
   - `[C-xxx]` for index entries in CONTEXT.md — slug of an inline-link's text, its target file stem, or a section heading (e.g. `[C-linter-checks]`). Resolved by the linter against CONTEXT.md.
   - `[K-xxx]` for Domain Rules from a `knowledge/*.md` topic file — slug of the topic-file stem or a heading inside it (e.g. `[K-linter-checks]`). Resolved by the linter against `knowledge/**/*.md`.
   - All three are resolved mechanically under `[plan] tag_reference_enforce`; an unresolved `[C-]`/`[K-]` slug is flagged exactly like an unresolved `[G-]` one.
+  - **Explicit anchors.** A long heading derives an unwieldy slug; pin a short stable one with `{#slug}`: `## Some long human-readable heading {#facades}` makes the tag `[K-facades]` (or `[C-]`/`[G-]` by source). An explicit anchor SUPPRESSES the heading-derived slug (one identity per heading); headings without one keep deriving from their text. Run `aethel tags list` to see every resolvable slug and its source; two headings collapsing to one slug is flagged as an ambiguous identity.
 
 ## Proposed Changes
 ### [Component/Module Name]
